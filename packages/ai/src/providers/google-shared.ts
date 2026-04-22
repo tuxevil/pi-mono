@@ -250,16 +250,49 @@ const JSON_SCHEMA_META_DECLARATIONS = new Set([
 ]);
 
 /**
- * Strip meta-declarations from a schema obj
+ * Strip meta-declarations and convert JSON Schema constructs unsupported by
+ * OpenAPI 3.03 (used by Cloud Code Assist for Claude models).
+ *
+ * - Strips `$schema`, `$id`, `$defs`, etc.
+ * - Converts `{ const: value }` to `{ enum: [value] }`
+ * - Collapses `{ anyOf: [{ const: a }, { const: b }] }` to `{ enum: [a, b] }`
  */
 function sanitizeForOpenApi(schema: unknown): unknown {
-	if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
+	if (typeof schema !== "object" || schema === null) {
 		return schema;
 	}
 
+	if (Array.isArray(schema)) {
+		return schema.map(sanitizeForOpenApi);
+	}
+
+	const obj = schema as Record<string, unknown>;
+
+	// Collapse anyOf-of-consts into a single enum
+	if (obj.anyOf && Array.isArray(obj.anyOf)) {
+		const allConst = obj.anyOf.every(
+			(item) => typeof item === "object" && item !== null && "const" in (item as Record<string, unknown>),
+		);
+		if (allConst) {
+			const enumValues = obj.anyOf.map((item) => (item as Record<string, unknown>).const);
+			const rest: Record<string, unknown> = {};
+			for (const [key, value] of Object.entries(obj)) {
+				if (key === "anyOf") continue;
+				if (JSON_SCHEMA_META_DECLARATIONS.has(key)) continue;
+				rest[key] = sanitizeForOpenApi(value);
+			}
+			return { ...rest, enum: enumValues };
+		}
+	}
+
 	const result: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(schema)) {
+	for (const [key, value] of Object.entries(obj)) {
 		if (JSON_SCHEMA_META_DECLARATIONS.has(key)) continue;
+		// Convert const to enum
+		if (key === "const") {
+			result.enum = [value];
+			continue;
+		}
 		result[key] = sanitizeForOpenApi(value);
 	}
 	return result;
