@@ -1490,18 +1490,6 @@ async function generateModels() {
 			maxTokens: 64000,
 		},
 		{
-			id: "claude-sonnet-4-6-thinking",
-			name: "Claude Sonnet 4.6 Thinking (Antigravity)",
-			api: "google-gemini-cli",
-			provider: "google-antigravity",
-			baseUrl: ANTIGRAVITY_ENDPOINT,
-			reasoning: true,
-			input: ["text", "image"],
-			cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-			contextWindow: 200000,
-			maxTokens: 64000,
-		},
-		{
 			id: "gpt-oss-120b-medium",
 			name: "GPT-OSS 120B Medium (Antigravity)",
 			api: "google-gemini-cli",
