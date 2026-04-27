@@ -32,6 +32,7 @@ import { icon } from "@mariozechner/mini-lit";
 import { Button } from "@mariozechner/mini-lit/dist/Button.js";
 import { Input } from "@mariozechner/mini-lit/dist/Input.js";
 import { createSystemNotification, customConvertToLlm, registerCustomMessageRenderers } from "./custom-messages.js";
+import { remoteBashTool, remoteEditTool, remoteReadTool, remoteWriteTool } from "./tools.js";
 
 // Register custom message renderers
 registerCustomMessageRenderers();
@@ -173,6 +174,24 @@ const updateUrl = (sessionId: string) => {
 	window.history.replaceState({}, "", url);
 };
 
+let systemEnv = { cwd: "/root/pi-mono", homedir: "/root", os: "linux", user: "root" };
+
+const getSystemPrompt = () => `You are a helpful AI assistant with access to various tools.
+
+Environment Information:
+- OS: ${systemEnv.os}
+- User: ${systemEnv.user}
+- Home Directory: ${systemEnv.homedir}
+- Current Working Directory: ${systemEnv.cwd}
+
+Available tools:
+- JavaScript REPL: Execute JavaScript code in a sandboxed browser environment
+- Artifacts: Create interactive HTML, SVG, Markdown, and text artifacts
+- bash: Execute shell commands locally
+- read/write/edit: Manage files on the local filesystem
+
+Feel free to use these tools when needed to provide accurate and helpful responses. Always respect the user's instructions and the environment context.`;
+
 const createAgent = async (initialState?: Partial<AgentState>) => {
 	if (agentUnsubscribe) {
 		agentUnsubscribe();
@@ -180,13 +199,7 @@ const createAgent = async (initialState?: Partial<AgentState>) => {
 
 	agent = new Agent({
 		initialState: initialState || {
-			systemPrompt: `You are a helpful AI assistant with access to various tools.
-
-Available tools:
-- JavaScript REPL: Execute JavaScript code in a sandboxed browser environment (can do calculations, get time, process data, create visualizations, etc.)
-- Artifacts: Create interactive HTML, SVG, Markdown, and text artifacts
-
-Feel free to use these tools when needed to provide accurate and helpful responses.`,
+			systemPrompt: getSystemPrompt(),
 			model: getModel("anthropic", "claude-sonnet-4-5-20250929"),
 			thinkingLevel: "off",
 			messages: [],
@@ -231,9 +244,32 @@ Feel free to use these tools when needed to provide accurate and helpful respons
 			// Create javascript_repl tool with access to attachments + artifacts
 			const replTool = createJavaScriptReplTool();
 			replTool.runtimeProvidersFactory = runtimeProvidersFactory;
-			return [replTool];
+
+			// Inject the OS-level proxy tools
+			return [replTool, remoteBashTool, remoteReadTool, remoteWriteTool, remoteEditTool];
 		},
 	});
+};
+
+const resolveFullModel = async (partialModel: any) => {
+	if (!partialModel || !partialModel.id || !partialModel.provider) {
+		return getModel("anthropic", "claude-sonnet-4-5-20250929");
+	}
+	if (partialModel.api) return partialModel;
+
+	const customProviders = await storage.customProviders.getAll();
+	for (const p of customProviders) {
+		if (p.name === partialModel.provider) {
+			const found = p.models?.find((m: any) => m.id === partialModel.id);
+			if (found) return found;
+		}
+	}
+
+	try {
+		return getModel(partialModel.provider as any, partialModel.id);
+	} catch {
+		return getModel("anthropic", "claude-sonnet-4-5-20250929");
+	}
 };
 
 const loadSession = async (sessionId: string): Promise<boolean> => {
@@ -249,8 +285,10 @@ const loadSession = async (sessionId: string): Promise<boolean> => {
 	const metadata = await storage.sessions.getMetadata(sessionId);
 	currentTitle = metadata?.title || "";
 
+	const fullModel = await resolveFullModel(sessionData.model);
+
 	await createAgent({
-		model: sessionData.model,
+		model: fullModel,
 		thinkingLevel: sessionData.thinkingLevel,
 		messages: sessionData.messages,
 		tools: [],
@@ -401,6 +439,8 @@ const renderApp = () => {
 										const [providerHint, modelIdHint] = String(settings.defaultModel).includes("/")
 											? String(settings.defaultModel).split("/", 2)
 											: [undefined, String(settings.defaultModel)];
+
+										let foundModel: any | undefined;
 										const customProviders = await storage.customProviders.getAll();
 										outer: for (const p of customProviders) {
 											for (const m of p.models ?? []) {
@@ -408,9 +448,19 @@ const renderApp = () => {
 												const providerMatch =
 													!providerHint || m.provider === providerHint || p.name === providerHint;
 												if (idMatch && providerMatch) {
-													model = m;
+													foundModel = m;
 													break outer;
 												}
+											}
+										}
+
+										if (foundModel) {
+											model = foundModel;
+										} else if (providerHint) {
+											try {
+												model = getModel(providerHint as any, modelIdHint);
+											} catch (_e) {
+												// keep current model
 											}
 										}
 									}
@@ -450,7 +500,7 @@ const renderApp = () => {
 					`
 							: sessionMetadataList.map(
 									(s) => html`
-						<div 
+						<div
 							class="session-item group relative ${s.id === currentSessionId ? "active bg-primary/10 border-primary/20" : "hover:bg-accent/40"}"
 							@click=${() => loadSession(s.id)}
 						>
@@ -458,7 +508,7 @@ const renderApp = () => {
 							<div class="session-meta">
 								${new Date(s.lastModified).toLocaleDateString()} • ${s.messageCount} ${i18n("messages")}
 							</div>
-							<button 
+							<button
 								class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
 								@click=${async (e: Event) => {
 									e.stopPropagation();
@@ -619,15 +669,27 @@ const renderApp = () => {
 				!rightSidebarCollapsed
 					? html`
 			<div class="right-sidebar bg-card/30 backdrop-blur-md">
-				<pi-file-explorer 
+				<pi-file-explorer
 					class="flex-1"
 					@file-select=${async (e: CustomEvent) => {
 						const { name, path } = e.detail;
-						if (!chatPanel?.artifactsPanel) return;
+						console.log("[main.ts] File selected:", name, path);
+
+						if (!chatPanel) {
+							console.log("[main.ts] No chatPanel instance");
+							return;
+						}
+						if (!chatPanel.artifactsPanel) {
+							console.log("[main.ts] No artifactsPanel inside chatPanel");
+							return;
+						}
 
 						try {
 							const resp = await fetch(`/api/files/download?path=${encodeURIComponent(path)}`);
-							if (!resp.ok) return;
+							if (!resp.ok) {
+								console.error("[main.ts] Failed to download file:", resp.status);
+								return;
+							}
 
 							const ext = name.split(".").pop()?.toLowerCase() || "";
 							const binaryExtensions = [
@@ -652,20 +714,20 @@ const renderApp = () => {
 
 							let content: string;
 							if (binaryExtensions.includes(ext)) {
-								const arrayBuffer = await resp.arrayBuffer();
-								const bytes = new Uint8Array(arrayBuffer);
-								let binary = "";
-								for (let i = 0; i < bytes.byteLength; i++) {
-									binary += String.fromCharCode(bytes[i]);
-								}
-								content = window.btoa(binary);
+								const blob = await resp.blob();
+								content = await new Promise((resolve) => {
+									const reader = new FileReader();
+									reader.onloadend = () => resolve(reader.result as string);
+									reader.readAsDataURL(blob);
+								});
 							} else {
 								content = await resp.text();
 							}
 
+							console.log("[main.ts] Injecting into ArtifactsPanel...", name);
 							chatPanel.artifactsPanel.injectArtifact(name, content);
 						} catch (err) {
-							console.error("Failed to inject artifact from file:", err);
+							console.error("[main.ts] Failed to inject artifact from file:", err);
 						}
 					}}
 				></pi-file-explorer>
@@ -717,6 +779,16 @@ async function initApp() {
 		availableAgents = await fetchAgentsList();
 	} catch (err) {
 		console.error("Failed to fetch specialized agents:", err);
+	}
+
+	// Fetch system environment for default prompt
+	try {
+		const envRes = await fetch("/api/sys/env");
+		if (envRes.ok) {
+			systemEnv = await envRes.json();
+		}
+	} catch (e) {
+		console.warn("Could not fetch system env:", e);
 	}
 
 	// Load layout preferences

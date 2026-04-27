@@ -283,8 +283,13 @@ export class FileExplorer extends LitElement {
 													} else {
 														const path =
 															this.currentPath === "." ? item.name : `${this.currentPath}/${item.name}`;
+														console.log("[FileExplorer.ts] Dispatching file-select", item.name, path);
 														this.dispatchEvent(
-															new CustomEvent("file-select", { detail: { name: item.name, path } }),
+															new CustomEvent("file-select", {
+																detail: { name: item.name, path },
+																bubbles: true,
+																composed: true,
+															}),
 														);
 													}
 												}}
