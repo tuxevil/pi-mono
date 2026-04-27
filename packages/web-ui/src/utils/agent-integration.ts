@@ -22,6 +22,7 @@ export interface AgentModels {
 		{
 			baseUrl?: string;
 			api?: string;
+			apiKey?: string;
 			models?: Array<{
 				id: string;
 				name?: string;
@@ -139,6 +140,12 @@ export async function syncAgentConfig(storage: AppStorage): Promise<void> {
 			}
 
 			await storage.customProviders.set(provider);
+
+			// If apiKey is defined inline in providers block, persist it to providerKeys
+			// (avoids requiring a separate auth block for local/self-hosted providers like Ollama)
+			if (config.apiKey && typeof config.apiKey === "string") {
+				await storage.providerKeys.set(providerName, config.apiKey);
+			}
 		}
 	}
 

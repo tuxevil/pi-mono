@@ -43,10 +43,14 @@ export function shouldUseProxyForProvider(provider: string, apiKey: string): boo
 		case "openrouter":
 		case "cerebras":
 		case "xai":
-		case "ollama":
-		case "lmstudio":
 		case "github-copilot":
 			return false;
+
+		// Local/self-hosted servers: always proxy so browser CORS is bypassed.
+		// The Vite server (Node) talks to them server-to-server, no CORS involved.
+		case "ollama":
+		case "lmstudio":
+			return true;
 
 		// Unknown providers - assume no proxy needed
 		// This allows new providers to work by default
@@ -83,9 +87,12 @@ export function applyProxyIfNeeded<T extends Api>(model: Model<T>, apiKey: strin
 	if (proxyUrl.startsWith("/")) {
 		// Path-based proxy (e.g. /api/proxy/URL)
 		const baseUrl = model.baseUrl.endsWith("/") ? model.baseUrl.slice(0, -1) : model.baseUrl;
+		const relativePath = `${proxyUrl}${proxyUrl.endsWith("/") ? "" : "/"}${encodeURIComponent(baseUrl)}`;
+		// OpenAI SDK requires an absolute URL — prepend origin when running in browser
+		const absoluteUrl = typeof window !== "undefined" ? `${window.location.origin}${relativePath}` : relativePath;
 		return {
 			...model,
-			baseUrl: `${proxyUrl}${proxyUrl.endsWith("/") ? "" : "/"}${encodeURIComponent(baseUrl)}`,
+			baseUrl: absoluteUrl,
 		};
 	}
 
