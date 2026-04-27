@@ -14,6 +14,7 @@ import {
 	FolderPlus,
 	RefreshCw,
 	Upload,
+	X,
 } from "lucide";
 import { i18n } from "../utils/i18n.js";
 
@@ -30,6 +31,10 @@ export class FileExplorer extends LitElement {
 	@state() private items: FileItem[] = [];
 	@state() private loading = false;
 	@state() private error: string | null = null;
+	/** Inline folder-name input state */
+	@state() private creatingFolder = false;
+	@state() private newFolderName = "";
+	@state() private folderError: string | null = null;
 
 	createRenderRoot() {
 		return this;
@@ -79,9 +84,18 @@ export class FileExplorer extends LitElement {
 	}
 
 	private async createFolder() {
-		const name = prompt(i18n("Enter folder name:"));
-		if (!name) return;
-
+		if (!this.creatingFolder) {
+			// Show inline input instead of prompt()
+			this.creatingFolder = true;
+			this.newFolderName = "";
+			this.folderError = null;
+			return;
+		}
+		const name = this.newFolderName.trim();
+		if (!name) {
+			this.folderError = "Name cannot be empty";
+			return;
+		}
 		const path = this.currentPath === "." ? name : `${this.currentPath}/${name}`;
 		try {
 			const resp = await fetch("/api/files/mkdir", {
@@ -90,13 +104,21 @@ export class FileExplorer extends LitElement {
 				body: JSON.stringify({ path }),
 			});
 			if (resp.ok) {
+				this.creatingFolder = false;
 				this.loadFiles();
 			} else {
-				alert(i18n("Failed to create folder"));
+				const body = await resp.json().catch(() => ({}));
+				this.folderError = body.error ?? i18n("Failed to create folder");
 			}
 		} catch (err) {
-			alert(String(err));
+			this.folderError = String(err);
 		}
+	}
+
+	private cancelCreateFolder() {
+		this.creatingFolder = false;
+		this.folderError = null;
+		this.newFolderName = "";
 	}
 
 	private async uploadFile() {
@@ -118,10 +140,11 @@ export class FileExplorer extends LitElement {
 				if (resp.ok) {
 					this.loadFiles();
 				} else {
-					alert(i18n("Failed to upload file"));
+					const body = await resp.json().catch(() => ({}));
+					this.error = body.error ?? i18n("Failed to upload file");
 				}
 			} catch (err) {
-				alert(String(err));
+				this.error = String(err);
 			} finally {
 				this.loading = false;
 			}
@@ -186,6 +209,33 @@ export class FileExplorer extends LitElement {
 								})}
                     </div>
                 </div>
+
+                <!-- Inline new-folder input -->
+                ${
+							this.creatingFolder
+								? html`
+                    <div class="px-3 py-2 border-b border-border bg-muted/30 flex flex-col gap-1">
+                        <div class="flex items-center gap-2">
+                            <input
+                                type="text"
+                                class="flex-1 text-sm bg-background border border-border rounded px-2 py-1 outline-none focus:border-primary text-foreground"
+                                placeholder=${i18n("Enter folder name:")}
+                                .value=${this.newFolderName}
+                                @input=${(e: Event) => {
+												this.newFolderName = (e.target as HTMLInputElement).value;
+											}}
+                                @keydown=${(e: KeyboardEvent) => {
+												if (e.key === "Enter") this.createFolder();
+												if (e.key === "Escape") this.cancelCreateFolder();
+											}}
+                            />
+                            ${Button({ variant: "ghost", size: "sm", children: icon(X, "xs"), onClick: () => this.cancelCreateFolder(), title: "Cancel" })}
+                        </div>
+                        ${this.folderError ? html`<span class="text-xs text-destructive">${this.folderError}</span>` : ""}
+                    </div>
+                `
+								: ""
+						}
 
                 <!-- Path breadcrumbs -->
                 <div class="px-3 py-1.5 border-b border-border bg-muted/20 text-[10px] font-mono flex items-center gap-1 overflow-hidden whitespace-nowrap">
