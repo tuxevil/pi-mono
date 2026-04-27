@@ -79,6 +79,13 @@ let chatPanel: ChatPanel;
 let agentUnsubscribe: (() => void) | undefined;
 let availableAgents: string[] = [];
 let selectedAgentName: string | undefined;
+let currentTheme: "default" | "cyberpunk" = (localStorage.getItem("pi-theme") as any) || "default";
+
+const toggleTheme = () => {
+	currentTheme = currentTheme === "default" ? "cyberpunk" : "default";
+	localStorage.setItem("pi-theme", currentTheme);
+	renderApp();
+};
 
 const generateTitle = (messages: AgentMessage[]): string => {
 	const firstUserMsg = messages.find((m) => m.role === "user" || m.role === "user-with-attachments");
@@ -287,7 +294,7 @@ const renderApp = () => {
 	if (!app) return;
 
 	const appHtml = html`
-		<div class="app-layout">
+		<div class="app-layout ${currentTheme === "cyberpunk" ? "theme-cyberpunk" : ""}">
 			<!-- Left Sidebar -->
 			<div class="left-sidebar bg-card/30 backdrop-blur-md">
 				<div class="sidebar-section border-b border-border/50">
@@ -403,6 +410,13 @@ const renderApp = () => {
 							onClick: () => SettingsDialog.open([new ProvidersModelsTab(), new ProxyTab()]),
 							title: "Settings",
 						})}
+						${Button({
+							variant: "ghost",
+							size: "sm",
+							children: html`<span class="text-xs font-bold">${currentTheme === "cyberpunk" ? "RETRO" : "MODERN"}</span>`,
+							onClick: toggleTheme,
+							title: "Toggle Retro Theme",
+						})}
 					</div>
 					<div class="text-[10px] text-muted-foreground font-mono">v1.21.9</div>
 				</div>
@@ -411,7 +425,7 @@ const renderApp = () => {
 			<!-- Main Content -->
 			<div class="main-content relative">
 				<!-- Header (Condensed) -->
-				<div class="flex items-center justify-between border-b border-border shrink-0 px-4 py-2 bg-background/80 backdrop-blur-md sticky top-0 z-10">
+				<div class="flex items-center justify-between border-b border-border shrink-0 px-4 py-2 bg-background/80 backdrop-blur-md sticky top-0 z-10 ${currentTheme === "cyberpunk" ? "header-glow" : ""}">
 					<div class="flex items-center gap-2 overflow-hidden">
 						${
 							currentTitle
