@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
@@ -51,6 +51,52 @@ export default defineConfig({
 							console.warn(`[agent-proxy] auth.json not found at ${path}`);
 							res.statusCode = 404;
 							res.end(JSON.stringify({ error: "auth.json not found" }));
+						}
+						return;
+					}
+					if (req.url === "/api/agents") {
+						const agentsDir = join(homedir(), "agentes");
+						console.log(`[agent-proxy] Listing agents from ${agentsDir}`);
+						if (existsSync(agentsDir)) {
+							const dirs = readdirSync(agentsDir).filter((d) => {
+								const fullPath = join(agentsDir, d);
+								return statSync(fullPath).isDirectory() && existsSync(join(fullPath, ".pi"));
+							});
+							res.setHeader("Content-Type", "application/json");
+							res.end(JSON.stringify(dirs));
+						} else {
+							res.statusCode = 404;
+							res.end(JSON.stringify({ error: "agentes directory not found" }));
+						}
+						return;
+					}
+					if (req.url?.startsWith("/api/agents/")) {
+						const agentName = req.url.substring("/api/agents/".length);
+						const agentPiDir = join(homedir(), "agentes", agentName, ".pi");
+						console.log(`[agent-proxy] Fetching config for agent ${agentName} from ${agentPiDir}`);
+
+						if (existsSync(agentPiDir)) {
+							const config: any = { name: agentName, files: {} };
+							const files = readdirSync(agentPiDir);
+							for (const file of files) {
+								const filePath = join(agentPiDir, file);
+								if (statSync(filePath).isFile()) {
+									if (file === "SYSTEM.md") {
+										config.systemPrompt = readFileSync(filePath, "utf-8");
+									} else if (file.endsWith(".json")) {
+										try {
+											config.files[file] = JSON.parse(readFileSync(filePath, "utf-8"));
+										} catch (e) {
+											console.error(`[agent-proxy] Failed to parse ${file}: ${e}`);
+										}
+									}
+								}
+							}
+							res.setHeader("Content-Type", "application/json");
+							res.end(JSON.stringify(config));
+						} else {
+							res.statusCode = 404;
+							res.end(JSON.stringify({ error: `Agent ${agentName} not found` }));
 						}
 						return;
 					}

@@ -9,6 +9,8 @@ import {
 	ChatPanel,
 	CustomProvidersStore,
 	createJavaScriptReplTool,
+	fetchAgentConfigByName,
+	fetchAgentsList,
 	generateUUID,
 	IndexedDBStorageBackend,
 	// PersistentStorageDialog, // TODO: Fix - currently broken
@@ -71,6 +73,8 @@ let isEditingTitle = false;
 let agent: Agent;
 let chatPanel: ChatPanel;
 let agentUnsubscribe: (() => void) | undefined;
+let availableAgents: string[] = [];
+let selectedAgentName: string | undefined;
 
 const generateTitle = (messages: AgentMessage[]): string => {
 	const firstUserMsg = messages.find((m) => m.role === "user" || m.role === "user-with-attachments");
@@ -343,6 +347,53 @@ const renderApp = () => {
 								</button>`
 							: html`<span class="text-base font-semibold text-foreground">Pi Web UI Example</span>`
 					}
+
+					<div class="flex items-center gap-2 ml-4">
+						<select
+							class="bg-secondary text-foreground text-sm rounded px-2 py-1 outline-none border border-border"
+							@change=${async (e: Event) => {
+								const name = (e.target as HTMLSelectElement).value;
+								if (name === "default") {
+									selectedAgentName = undefined;
+									await createAgent();
+								} else {
+									selectedAgentName = name;
+									const config = await fetchAgentConfigByName(name);
+									if (config) {
+										const settings = config.files["settings.json"] || {};
+										let model = agent.state.model;
+										if (settings.defaultModel) {
+											// Try to find the model in the custom providers first
+											const customProviders = await storage.customProviders.getAll();
+											for (const p of customProviders) {
+												const found = p.models?.find((m) => m.id === settings.defaultModel);
+												if (found) {
+													model = found;
+													break;
+												}
+											}
+										}
+
+										await createAgent({
+											systemPrompt: config.systemPrompt,
+											model: model,
+											thinkingLevel: settings.defaultThinkingLevel || agent.state.thinkingLevel,
+										});
+									}
+								}
+								renderApp();
+							}}
+						>
+							<option value="default" ?selected=${!selectedAgentName}>Default Agent</option>
+							${availableAgents.map(
+								(name) => html`
+								<option value="${name}" ?selected=${selectedAgentName === name}>
+									${name.charAt(0).toUpperCase() + name.slice(1)}
+								</option>
+							`,
+							)}
+						</select>
+					</div>
 				</div>
 				<div class="flex items-center gap-1 px-2">
 					${Button({
@@ -411,6 +462,13 @@ async function initApp() {
 		await syncAgentConfig(storage);
 	} catch (err) {
 		console.error("Failed to sync with local agent:", err);
+	}
+
+	// Fetch available specialized agents
+	try {
+		availableAgents = await fetchAgentsList();
+	} catch (err) {
+		console.error("Failed to fetch specialized agents:", err);
 	}
 
 	// Check for session in URL
