@@ -17,7 +17,10 @@ export default defineConfig({
 			name: "sessions-api",
 			configureServer(server) {
 				server.middlewares.use(async (req, res, next) => {
-					if (req.url === "/api/settings") {
+					const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
+					const pathname = url.pathname;
+
+					if (pathname === "/api/settings") {
 						try {
 							const settingsPath = "/root/.pi/agent/settings.json";
 							if (fs.existsSync(settingsPath)) {
@@ -32,16 +35,19 @@ export default defineConfig({
 						}
 					}
 
-					if (req.url === "/agentes.json") {
+					if (pathname === "/agentes.json") {
 						const filePath = path.resolve(__dirname, "public/agentes.json");
 						if (fs.existsSync(filePath)) {
 							res.setHeader("Content-Type", "application/json");
 							return res.end(fs.readFileSync(filePath));
 						}
+						// Fallback to empty list instead of next() to avoid Vite's HTML fallback
+						res.setHeader("Content-Type", "application/json");
+						return res.end(JSON.stringify([]));
 					}
 
-					if (req.url?.startsWith("/agentes/")) {
-						const filePath = path.join("/root", req.url);
+					if (pathname.startsWith("/agentes/")) {
+						const filePath = path.join("/root", pathname);
 						if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
 							const ext = path.extname(filePath).toLowerCase();
 							const contentType =
@@ -49,6 +55,12 @@ export default defineConfig({
 							res.setHeader("Content-Type", contentType);
 							return res.end(fs.readFileSync(filePath));
 						}
+					}
+
+					if (pathname.startsWith("/api/") && !pathname.startsWith("/api/sessions") && !pathname.startsWith("/api/tools") && !pathname.startsWith("/api/ai/")) {
+						res.statusCode = 404;
+						res.setHeader("Content-Type", "application/json");
+						return res.end(JSON.stringify({ error: `API route ${pathname} not found` }));
 					}
 
 					next();
