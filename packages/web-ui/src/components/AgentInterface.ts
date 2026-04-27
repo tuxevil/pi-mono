@@ -167,7 +167,6 @@ export class AgentInterface extends LitElement {
 					this.requestUpdate();
 					break;
 				case "agent_end":
-					console.log("[AgentInterface] agent_end event received. isStreaming:", this.session?.state.isStreaming);
 					// Clear streaming container when agent finishes
 					if (this._streamingContainer) {
 						this._streamingContainer.isStreaming = false;
@@ -277,7 +276,7 @@ export class AgentInterface extends LitElement {
 			<div class="flex flex-col gap-3">
 				<!-- Stable messages list - won't re-render during streaming -->
 				<message-list
-					.messages=${[...this.session.state.messages]}
+					.messages=${this.session.state.messages}
 					.tools=${state.tools}
 					.pendingToolCalls=${this.session ? this.session.state.pendingToolCalls : new Set<string>()}
 					.isStreaming=${state.isStreaming}
@@ -352,7 +351,6 @@ export class AgentInterface extends LitElement {
 
 		const session = this.session;
 		const state = this.session.state;
-		console.log("[AgentInterface] Render. isStreaming:", state.isStreaming);
 		return html`
 			<div class="flex flex-col h-full bg-background text-foreground">
 				<!-- Messages Area -->
