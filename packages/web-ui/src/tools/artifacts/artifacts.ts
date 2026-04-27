@@ -259,6 +259,18 @@ export class ArtifactsPanel extends LitElement {
 		});
 	}
 
+	public injectArtifact(filename: string, content: string) {
+		const artifact: Artifact = {
+			filename,
+			content,
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		};
+		this._artifacts.set(filename, artifact);
+		this._artifacts = new Map(this._artifacts);
+		this.openArtifact(filename);
+	}
+
 	// Open panel and focus an artifact tab by filename
 	public openArtifact(filename: string) {
 		if (this._artifacts.has(filename)) {

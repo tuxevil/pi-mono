@@ -277,7 +277,17 @@ export class FileExplorer extends LitElement {
 											(item) => html`
                                 <div 
                                     class="flex items-center justify-between px-3 py-1.5 hover:bg-accent/50 cursor-pointer group transition-colors border-b border-border/10"
-                                    @click=${() => (item.isDirectory ? this.navigateTo(item.name) : null)}
+                                    @click=${() => {
+													if (item.isDirectory) {
+														this.navigateTo(item.name);
+													} else {
+														const path =
+															this.currentPath === "." ? item.name : `${this.currentPath}/${item.name}`;
+														this.dispatchEvent(
+															new CustomEvent("file-select", { detail: { name: item.name, path } }),
+														);
+													}
+												}}
                                 >
                                     <div class="flex items-center gap-2 min-w-0">
                                         <span class="${item.isDirectory ? "text-blue-400" : "text-muted-foreground"} group-hover:scale-110 transition-transform">

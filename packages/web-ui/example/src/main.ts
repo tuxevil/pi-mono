@@ -619,7 +619,56 @@ const renderApp = () => {
 				!rightSidebarCollapsed
 					? html`
 			<div class="right-sidebar bg-card/30 backdrop-blur-md">
-				<pi-file-explorer class="flex-1"></pi-file-explorer>
+				<pi-file-explorer 
+					class="flex-1"
+					@file-select=${async (e: CustomEvent) => {
+						const { name, path } = e.detail;
+						if (!chatPanel?.artifactsPanel) return;
+
+						try {
+							const resp = await fetch(`/api/files/download?path=${encodeURIComponent(path)}`);
+							if (!resp.ok) return;
+
+							const ext = name.split(".").pop()?.toLowerCase() || "";
+							const binaryExtensions = [
+								"png",
+								"jpg",
+								"jpeg",
+								"gif",
+								"webp",
+								"pdf",
+								"docx",
+								"xlsx",
+								"zip",
+								"mp3",
+								"mp4",
+								"webm",
+								"ogg",
+								"wav",
+								"bmp",
+								"ico",
+								"wasm",
+							];
+
+							let content: string;
+							if (binaryExtensions.includes(ext)) {
+								const arrayBuffer = await resp.arrayBuffer();
+								const bytes = new Uint8Array(arrayBuffer);
+								let binary = "";
+								for (let i = 0; i < bytes.byteLength; i++) {
+									binary += String.fromCharCode(bytes[i]);
+								}
+								content = window.btoa(binary);
+							} else {
+								content = await resp.text();
+							}
+
+							chatPanel.artifactsPanel.injectArtifact(name, content);
+						} catch (err) {
+							console.error("Failed to inject artifact from file:", err);
+						}
+					}}
+				></pi-file-explorer>
 			</div>
 			`
 					: ""
