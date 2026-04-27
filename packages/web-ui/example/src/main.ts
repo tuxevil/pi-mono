@@ -324,12 +324,20 @@ const renderApp = () => {
 									const settings = config.files["settings.json"] || {};
 									let model = agent.state.model;
 									if (settings.defaultModel) {
+										// defaultModel can be "provider/id" or just "id"
+										const [providerHint, modelIdHint] = String(settings.defaultModel).includes("/")
+											? String(settings.defaultModel).split("/", 2)
+											: [undefined, String(settings.defaultModel)];
 										const customProviders = await storage.customProviders.getAll();
-										for (const p of customProviders) {
-											const found = p.models?.find((m) => m.id === settings.defaultModel);
-											if (found) {
-												model = found;
-												break;
+										outer: for (const p of customProviders) {
+											for (const m of p.models ?? []) {
+												const idMatch = m.id === modelIdHint;
+												const providerMatch =
+													!providerHint || m.provider === providerHint || p.name === providerHint;
+												if (idMatch && providerMatch) {
+													model = m;
+													break outer;
+												}
 											}
 										}
 									}

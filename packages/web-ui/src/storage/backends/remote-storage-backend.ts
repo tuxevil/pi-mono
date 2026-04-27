@@ -16,8 +16,17 @@ export class RemoteStorageBackend implements StorageBackend {
 		this.agentName = name;
 	}
 
+	/**
+	 * Build a URL for the given path, appending agent query param when set.
+	 * Uses relative paths to avoid depending on window.location (safe in Node/SSR).
+	 */
 	private getUrl(path: string): string {
-		const url = new URL(`${window.location.origin}${this.baseUrl}${path}`);
+		// Build relative URL — works in browser without window.location.origin
+		const base =
+			typeof window !== "undefined"
+				? `${window.location.origin}${this.baseUrl}${path}`
+				: `http://localhost${this.baseUrl}${path}`;
+		const url = new URL(base);
 		if (this.agentName) {
 			url.searchParams.set("agent", this.agentName);
 		}

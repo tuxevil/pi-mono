@@ -1,8 +1,42 @@
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+	appendFileSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	statSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+/** Simple deterministic UUID v4 for Node (no crypto.randomUUID in older builds). */
+function newId(): string {
+	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+		const r = (Math.random() * 16) | 0;
+		return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+	});
+}
+
+/**
+ * Guard: resolves path and ensures it stays within allowedRoot.
+ * Returns null if the resolved path would escape.
+ */
+function safePath(allowedRoot: string, ...segments: string[]): string | null {
+	const full = resolve(join(allowedRoot, ...segments));
+	return full.startsWith(allowedRoot) ? full : null;
+}
+
+/** Returns true if the request appears to come from localhost. */
+function isLocalhost(req: any): boolean {
+	const addr = req.socket?.remoteAddress ?? "";
+	return addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
+}
 
 export default defineConfig({
 	define: {
@@ -14,15 +48,12 @@ export default defineConfig({
 			name: "agent-proxy",
 			configureServer(server) {
 				server.middlewares.use(async (req, res, next) => {
-					console.log(`[agent-proxy] Incoming request: ${req.url}`);
 					if (req.url === "/api/agent/settings") {
 						const path = join(homedir(), ".pi", "agent", "settings.json");
-						console.log(`[agent-proxy] Serving settings from ${path}`);
 						if (existsSync(path)) {
 							res.setHeader("Content-Type", "application/json");
 							res.end(readFileSync(path));
 						} else {
-							console.warn(`[agent-proxy] settings.json not found at ${path}`);
 							res.statusCode = 404;
 							res.end(JSON.stringify({ error: "settings.json not found" }));
 						}
@@ -30,25 +61,27 @@ export default defineConfig({
 					}
 					if (req.url === "/api/agent/models") {
 						const path = join(homedir(), ".pi", "agent", "models.json");
-						console.log(`[agent-proxy] Serving models from ${path}`);
 						if (existsSync(path)) {
 							res.setHeader("Content-Type", "application/json");
 							res.end(readFileSync(path));
 						} else {
-							console.warn(`[agent-proxy] models.json not found at ${path}`);
 							res.statusCode = 404;
 							res.end(JSON.stringify({ error: "models.json not found" }));
 						}
 						return;
 					}
 					if (req.url === "/api/agent/auth") {
+						// auth.json contains OAuth tokens — restrict to localhost only
+						if (!isLocalhost(req)) {
+							res.statusCode = 403;
+							res.end(JSON.stringify({ error: "Forbidden" }));
+							return;
+						}
 						const path = join(homedir(), ".pi", "agent", "auth.json");
-						console.log(`[agent-proxy] Serving auth from ${path}`);
 						if (existsSync(path)) {
 							res.setHeader("Content-Type", "application/json");
 							res.end(readFileSync(path));
 						} else {
-							console.warn(`[agent-proxy] auth.json not found at ${path}`);
 							res.statusCode = 404;
 							res.end(JSON.stringify({ error: "auth.json not found" }));
 						}
@@ -56,7 +89,6 @@ export default defineConfig({
 					}
 					if (req.url === "/api/agents") {
 						const agentsDir = join(homedir(), "agentes");
-						console.log(`[agent-proxy] Listing agents from ${agentsDir}`);
 						if (existsSync(agentsDir)) {
 							const dirs = readdirSync(agentsDir).filter((d) => {
 								const fullPath = join(agentsDir, d);
@@ -71,12 +103,26 @@ export default defineConfig({
 						return;
 					}
 					if (req.url?.startsWith("/api/agents/")) {
-						const agentName = req.url.substring("/api/agents/".length);
-						const agentPiDir = join(homedir(), "agentes", agentName, ".pi");
-						console.log(`[agent-proxy] Fetching config for agent ${agentName} from ${agentPiDir}`);
+						const agentsRoot = resolve(join(homedir(), "agentes"));
+						const rawName = req.url.substring("/api/agents/".length);
+						// Guard: only allow simple directory names (no slashes or dots)
+						if (!/^[\w-]+$/.test(rawName)) {
+							res.statusCode = 400;
+							res.end(JSON.stringify({ error: "Invalid agent name" }));
+							return;
+						}
+						const agentPiDir = safePath(agentsRoot, rawName, ".pi");
+						if (!agentPiDir) {
+							res.statusCode = 400;
+							res.end(JSON.stringify({ error: "Invalid agent path" }));
+							return;
+						}
 
 						if (existsSync(agentPiDir)) {
-							const config: any = { name: agentName, files: {} };
+							const config: { name: string; systemPrompt?: string; files: Record<string, unknown> } = {
+								name: rawName,
+								files: {},
+							};
 							const files = readdirSync(agentPiDir);
 							for (const file of files) {
 								const filePath = join(agentPiDir, file);
@@ -96,7 +142,7 @@ export default defineConfig({
 							res.end(JSON.stringify(config));
 						} else {
 							res.statusCode = 404;
-							res.end(JSON.stringify({ error: `Agent ${agentName} not found` }));
+							res.end(JSON.stringify({ error: `Agent ${rawName} not found` }));
 						}
 						return;
 					}
@@ -283,8 +329,8 @@ export default defineConfig({
 										if (session && session.title !== data.title) {
 											const infoEntry = {
 												type: "session_info",
-												id: Math.random().toString(36).substring(2, 10),
-												parentId: session.messages.length > 0 ? "last" : null, // placeholder
+												id: newId(),
+												parentId: session.messages.length > 0 ? "last" : null,
 												timestamp: new Date().toISOString(),
 												name: data.title,
 											};
@@ -342,7 +388,7 @@ export default defineConfig({
 								for (const msg of data.messages) {
 									content += `${JSON.stringify({
 										type: "message",
-										id: Math.random().toString(36).substring(2, 10),
+										id: newId(),
 										parentId: null,
 										timestamp: msg.timestamp || new Date().toISOString(),
 										message: msg,
@@ -356,9 +402,7 @@ export default defineConfig({
 
 							if (req.method === "DELETE") {
 								if (sessionPath) {
-									// Rename to .bak instead of deleting to be safe?
-									// No, user asked for sync, so delete is fine.
-									// unlinkSync(sessionPath);
+									unlinkSync(sessionPath);
 								}
 								res.end(JSON.stringify({ success: true }));
 								return;
@@ -372,12 +416,16 @@ export default defineConfig({
 						const url = new URL(req.url, "http://localhost");
 						const pathname = url.pathname;
 						const action = pathname.substring("/api/files/".length);
-						const baseDir = "/root/pi-mono"; // Root directory for file explorer
+						const baseDir = resolve("/root/pi-mono"); // Root directory for file explorer
 
 						if (action === "list") {
 							const relPath = url.searchParams.get("path") || ".";
-							const fullPath = join(baseDir, relPath);
-							console.log(`[agent-proxy] Listing files from ${fullPath}`);
+							const fullPath = safePath(baseDir, relPath);
+							if (!fullPath) {
+								res.statusCode = 400;
+								res.end(JSON.stringify({ error: "Invalid path" }));
+								return;
+							}
 
 							if (existsSync(fullPath)) {
 								const items = readdirSync(fullPath).map((name) => {
@@ -401,8 +449,12 @@ export default defineConfig({
 
 						if (action === "download") {
 							const relPath = url.searchParams.get("path") || "";
-							const fullPath = join(baseDir, relPath);
-							console.log(`[agent-proxy] Downloading file: ${fullPath}`);
+							const fullPath = safePath(baseDir, relPath);
+							if (!fullPath) {
+								res.statusCode = 400;
+								res.end(JSON.stringify({ error: "Invalid path" }));
+								return;
+							}
 
 							if (existsSync(fullPath) && statSync(fullPath).isFile()) {
 								res.setHeader(
@@ -427,8 +479,12 @@ export default defineConfig({
 								req.on("end", () => resolve(data));
 							});
 							const { path: relPath } = JSON.parse(body);
-							const fullPath = join(baseDir, relPath);
-							console.log(`[agent-proxy] Creating directory: ${fullPath}`);
+							const fullPath = safePath(baseDir, relPath);
+							if (!fullPath) {
+								res.statusCode = 400;
+								res.end(JSON.stringify({ error: "Invalid path" }));
+								return;
+							}
 
 							if (!existsSync(fullPath)) {
 								mkdirSync(fullPath, { recursive: true });
@@ -443,17 +499,16 @@ export default defineConfig({
 						if (action === "upload" && req.method === "POST") {
 							const relPath = url.searchParams.get("path") || "";
 							const fileName = url.searchParams.get("name") || "upload";
-							const fullPath = join(baseDir, relPath, fileName);
-							console.log(`[agent-proxy] Uploading file to: ${fullPath}`);
-
-							const chunks: Buffer[] = [];
-							req.on("data", (chunk) => {
-								chunks.push(chunk);
-							});
+							const fullPath = safePath(baseDir, relPath, fileName);
+							if (!fullPath) {
+								res.statusCode = 400;
+								res.end(JSON.stringify({ error: "Invalid path" }));
+								return;
+							}
 							await new Promise((resolve) => req.on("end", resolve));
 
-							const dir = join(baseDir, relPath);
-							if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+							const dir = safePath(baseDir, relPath);
+							if (dir && !existsSync(dir)) mkdirSync(dir, { recursive: true });
 
 							writeFileSync(fullPath, Buffer.concat(chunks));
 							res.end(JSON.stringify({ success: true }));
@@ -462,10 +517,8 @@ export default defineConfig({
 					}
 					if (req.url?.startsWith("/api/proxy/")) {
 						const targetUrl = decodeURIComponent(req.url.substring("/api/proxy/".length));
-						console.log(`[agent-proxy] Proxying request to: ${targetUrl}`);
 
-						// Simple proxy implementation using fetch
-						// Note: This is a dev-only helper
+						// Simple proxy — dev-only helper
 						const body = await new Promise<Buffer>((resolve) => {
 							const chunks: Buffer[] = [];
 							req.on("data", (chunk) => {

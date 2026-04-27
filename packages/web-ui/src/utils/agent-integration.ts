@@ -2,9 +2,12 @@ import { getModels, getProviders, type Model } from "@mariozechner/pi-ai";
 import type { AppStorage } from "../storage/app-storage.js";
 import { generateUUID } from "./uuid.js";
 
+/** Minimum known shape of settings.json — extra keys are allowed but typed loosely. */
 export interface AgentSettings {
 	enabledModels?: string[];
-	[key: string]: any;
+	defaultModel?: string;
+	defaultThinkingLevel?: string;
+	[key: string]: unknown;
 }
 
 export interface CustomAgentConfig {
@@ -34,21 +37,17 @@ export interface AgentModels {
 export async function fetchAgentConfig(): Promise<{
 	settings: AgentSettings | null;
 	models: AgentModels | null;
-	auth: any | null;
+	auth: Record<string, unknown> | null;
 }> {
-	console.log("[agent-integration] Fetching agent config...");
 	try {
 		const settingsResp = await fetch("/api/agent/settings");
 		const settings = settingsResp.ok ? await settingsResp.json() : null;
-		console.log("[agent-integration] Settings fetched:", settings ? "success" : "failed");
 
 		const modelsResp = await fetch("/api/agent/models");
 		const models = modelsResp.ok ? await modelsResp.json() : { providers: {} };
-		console.log("[agent-integration] Models fetched:", models ? "success" : "failed");
 
 		const authResp = await fetch("/api/agent/auth");
 		const auth = authResp.ok ? await authResp.json() : null;
-		console.log("[agent-integration] Auth fetched:", auth ? "success" : "failed");
 
 		return { settings, models, auth };
 	} catch (err) {
@@ -69,14 +68,12 @@ export async function syncAgentConfig(storage: AppStorage): Promise<void> {
 
 	// Sync custom models and provider overrides from models.json
 	if (models?.providers) {
-		console.log("[agent-integration] Syncing providers from models.json:", Object.keys(models.providers));
 		const knownProviders = getProviders();
 		const existingProviders = await storage.customProviders.getAll();
 		for (const [providerName, config] of Object.entries(models.providers)) {
 			let provider = existingProviders.find((p) => p.name === providerName);
 
 			if (!provider) {
-				console.log(`[agent-integration] Creating new custom provider: ${providerName}`);
 				const id = generateUUID();
 				provider = {
 					id,
@@ -88,29 +85,20 @@ export async function syncAgentConfig(storage: AppStorage): Promise<void> {
 			} else {
 				// Update existing provider's base URL
 				if (config.baseUrl) {
-					console.log(`[agent-integration] Updating baseUrl for ${providerName}: ${config.baseUrl}`);
 					provider.baseUrl = config.baseUrl;
 				}
 			}
 
 			if (!provider.models) provider.models = [];
 
-			// If it's a known provider, we might want to override its built-in models
+			// If it's a known provider, override its built-in models' baseUrl
 			if (knownProviders.includes(providerName as any) && config.baseUrl) {
-				console.log(`[agent-integration] Overriding built-in models for known provider: ${providerName}`);
 				const builtInModels = getModels(providerName as any);
 				for (const builtIn of builtInModels) {
-					// Check if already in provider.models
 					const existingModel = provider.models.find((m) => m.id === builtIn.id);
 					if (existingModel) {
-						console.log(
-							`[agent-integration] Updating baseUrl for built-in model ${builtIn.id}: ${config.baseUrl}`,
-						);
 						existingModel.baseUrl = config.baseUrl;
 					} else {
-						console.log(
-							`[agent-integration] Adding built-in model ${builtIn.id} with baseUrl: ${config.baseUrl}`,
-						);
 						provider.models.push({
 							...builtIn,
 							provider: providerName,
@@ -156,30 +144,27 @@ export async function syncAgentConfig(storage: AppStorage): Promise<void> {
 
 	// Sync auth
 	if (auth) {
-		console.log("[agent-integration] Syncing auth from auth.json:", Object.keys(auth));
 		for (const [providerName, cred] of Object.entries(auth)) {
-			const credData = cred as any;
-			if (credData.type === "api_key") {
-				console.log(`[agent-integration] Syncing API key for ${providerName}`);
+			const credData = cred as Record<string, unknown>;
+			if (credData.type === "api_key" && typeof credData.key === "string") {
 				await storage.providerKeys.set(providerName, credData.key);
-			} else if (credData.type === "oauth") {
+			} else if (credData.type === "oauth" && typeof credData.access === "string") {
 				if (providerName === "google-antigravity" || providerName === "google-gemini-cli") {
-					const key = JSON.stringify({ token: credData.access, projectId: credData.projectId || "proxy-managed" });
-					console.log(`[agent-integration] Syncing OAuth key for ${providerName}`);
+					const key = JSON.stringify({
+						token: credData.access,
+						projectId: typeof credData.projectId === "string" ? credData.projectId : "proxy-managed",
+					});
 					await storage.providerKeys.set(providerName, key);
 				} else {
-					// Other OAuth providers just use the access token
-					console.log(`[agent-integration] Syncing OAuth access token for ${providerName}`);
 					await storage.providerKeys.set(providerName, credData.access);
 				}
 			}
 		}
 	}
 
-	// Enable proxy by default if not set, as we are likely using a local rotator/proxy
+	// Enable proxy by default if not already configured
 	const proxyEnabled = await storage.settings.get<boolean>("proxy.enabled");
 	if (proxyEnabled === undefined || proxyEnabled === null) {
-		console.log("[agent-integration] Enabling CORS proxy by default");
 		await storage.settings.set("proxy.enabled", true);
 		await storage.settings.set("proxy.url", "/api/proxy/");
 	}
