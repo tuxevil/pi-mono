@@ -173,6 +173,8 @@ export class AgentInterface extends LitElement {
 						this._streamingContainer.setMessage(null, true);
 					}
 					this.requestUpdate();
+					// One more update once the session is truly idle (isStreaming = false)
+					this.session?.waitForIdle().then(() => this.requestUpdate());
 					break;
 				case "message_update":
 					if (this._streamingContainer) {
