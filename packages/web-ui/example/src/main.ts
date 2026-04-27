@@ -208,7 +208,7 @@ const createAgent = async (initialState?: Partial<AgentState>) => {
 	agent = new Agent({
 		initialState: initialState || {
 			systemPrompt: getSystemPrompt(),
-			model: getModel("anthropic", "claude-sonnet-4-5-20250929"),
+			model: getModel("google-antigravity", "gemini-3-flash"),
 			thinkingLevel: "off",
 			messages: [],
 			tools: [],
@@ -261,7 +261,7 @@ const createAgent = async (initialState?: Partial<AgentState>) => {
 
 const resolveFullModel = async (partialModel: any) => {
 	if (!partialModel || !partialModel.id || !partialModel.provider) {
-		return getModel("anthropic", "claude-sonnet-4-5-20250929");
+		return getModel("google-antigravity", "gemini-3-flash");
 	}
 	if (partialModel.api) return partialModel;
 
@@ -276,7 +276,7 @@ const resolveFullModel = async (partialModel: any) => {
 	try {
 		return getModel(partialModel.provider as any, partialModel.id);
 	} catch {
-		return getModel("anthropic", "claude-sonnet-4-5-20250929");
+		return getModel("google-antigravity", "gemini-3-flash");
 	}
 };
 
