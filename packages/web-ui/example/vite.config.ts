@@ -101,10 +101,19 @@ export default defineConfig({
 						return;
 					}
 					if (req.url?.startsWith("/api/storage/")) {
-						const parts = req.url.substring("/api/storage/".length).split("/");
+						const url = new URL(req.url, "http://localhost");
+						const pathname = url.pathname;
+						const parts = pathname.substring("/api/storage/".length).split("/");
 						const storeName = parts[0];
 						const action = parts[1];
-						const sessionsDir = join(homedir(), ".pi", "agent", "sessions");
+						const agentName = url.searchParams.get("agent");
+
+						let sessionsDir = join(homedir(), ".pi", "agent", "sessions");
+						if (agentName && agentName !== "default") {
+							sessionsDir = join(sessionsDir, `--root-agentes-${agentName}--`);
+						} else {
+							sessionsDir = join(sessionsDir, "--root--");
+						}
 
 						const getAllSessionFiles = (dir: string): string[] => {
 							let results: string[] = [];
@@ -120,6 +129,18 @@ export default defineConfig({
 								}
 							}
 							return results;
+						};
+
+						const getMessagePreview = (message: any) => {
+							if (!message || !message.content) return "";
+							if (typeof message.content === "string") return message.content;
+							if (Array.isArray(message.content)) {
+								return message.content
+									.filter((c: any) => c.type === "text")
+									.map((c: any) => c.text)
+									.join(" ");
+							}
+							return "";
 						};
 
 						const readSession = (path: string) => {
@@ -154,7 +175,7 @@ export default defineConfig({
 
 								return {
 									id: header.id,
-									title: title || messages[0]?.content?.substring?.(0, 50) || "New Session",
+									title: title || getMessagePreview(messages[0])?.substring(0, 50) || "New Session",
 									model: model || { id: "unknown", provider: "unknown" },
 									thinkingLevel,
 									messages,
@@ -194,15 +215,15 @@ export default defineConfig({
 										messageCount: s.messages.length,
 										usage: { input: 0, output: 0, totalTokens: 0, cost: { total: 0 } },
 										thinkingLevel: s.thinkingLevel,
-										preview: s.messages[0]?.content?.substring?.(0, 200) || "",
+										preview: getMessagePreview(s.messages[0])?.substring(0, 200) || "",
 									}));
-									if (req.url.includes("direction=desc")) {
+									if (url.searchParams.get("direction") === "desc") {
 										metadata.sort((a: any, b: any) => b.lastModified.localeCompare(a.lastModified));
 									}
 									res.setHeader("Content-Type", "application/json");
 									res.end(JSON.stringify(metadata));
 								} else {
-									if (req.url.includes("direction=desc")) {
+									if (url.searchParams.get("direction") === "desc") {
 										sessions.sort((a: any, b: any) => b.lastModified.localeCompare(a.lastModified));
 									}
 									res.setHeader("Content-Type", "application/json");
@@ -233,7 +254,7 @@ export default defineConfig({
 												lastModified: session.lastModified,
 												messageCount: session.messages.length,
 												thinkingLevel: session.thinkingLevel,
-												preview: session.messages[0]?.content?.substring?.(0, 200) || "",
+												preview: getMessagePreview(session.messages[0])?.substring(0, 200) || "",
 											}),
 										);
 									} else {
