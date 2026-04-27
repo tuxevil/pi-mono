@@ -21,6 +21,7 @@ import type {
 	BeforeToolCallContext,
 	BeforeToolCallResult,
 	StreamFn,
+	ThinkingLevel,
 	ToolExecutionMode,
 } from "./types.js";
 
@@ -230,6 +231,26 @@ export class Agent {
 		return this._state;
 	}
 
+	/**
+	 * Update the active model and emit a state_change event.
+	 */
+	setModel(model: Model<any>): void {
+		this._state.model = model;
+		void this.emitStateChange();
+	}
+
+	/**
+	 * Update the requested thinking level and emit a state_change event.
+	 */
+	setThinkingLevel(level: ThinkingLevel): void {
+		this._state.thinkingLevel = level;
+		void this.emitStateChange();
+	}
+
+	private async emitStateChange(): Promise<void> {
+		await this.processEvents({ type: "state_change", state: this.state });
+	}
+
 	/** Controls how queued steering messages are drained. */
 	set steeringMode(mode: QueueMode) {
 		this.steeringQueue.mode = mode;
@@ -307,6 +328,7 @@ export class Agent {
 		this._state.errorMessage = undefined;
 		this.clearFollowUpQueue();
 		this.clearSteeringQueue();
+		void this.emitStateChange();
 	}
 
 	/** Start a new prompt from text, a single message, or a batch of messages. */

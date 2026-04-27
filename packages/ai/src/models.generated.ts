@@ -3633,7 +3633,7 @@ export const MODELS = {
 			api: "google-generative-ai",
 			provider: "google",
 			baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-			reasoning: false,
+			reasoning: true,
 			input: ["text", "image"],
 			cost: {
 				input: 0.1,
@@ -3650,7 +3650,7 @@ export const MODELS = {
 			api: "google-generative-ai",
 			provider: "google",
 			baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-			reasoning: false,
+			reasoning: true,
 			input: ["text", "image"],
 			cost: {
 				input: 0.075,
@@ -4215,7 +4215,7 @@ export const MODELS = {
 			api: "google-gemini-cli",
 			provider: "google-gemini-cli",
 			baseUrl: "https://cloudcode-pa.googleapis.com",
-			reasoning: false,
+			reasoning: true,
 			input: ["text", "image"],
 			cost: {
 				input: 0,
@@ -4387,7 +4387,7 @@ export const MODELS = {
 			api: "google-vertex",
 			provider: "google-vertex",
 			baseUrl: "https://{location}-aiplatform.googleapis.com",
-			reasoning: false,
+			reasoning: true,
 			input: ["text", "image"],
 			cost: {
 				input: 0.15,
@@ -8399,7 +8399,7 @@ export const MODELS = {
 			api: "openai-completions",
 			provider: "openrouter",
 			baseUrl: "https://openrouter.ai/api/v1",
-			reasoning: false,
+			reasoning: true,
 			input: ["text", "image"],
 			cost: {
 				input: 0.09999999999999999,
@@ -8416,7 +8416,7 @@ export const MODELS = {
 			api: "openai-completions",
 			provider: "openrouter",
 			baseUrl: "https://openrouter.ai/api/v1",
-			reasoning: false,
+			reasoning: true,
 			input: ["text", "image"],
 			cost: {
 				input: 0.075,
@@ -12889,7 +12889,7 @@ export const MODELS = {
 			api: "anthropic-messages",
 			provider: "vercel-ai-gateway",
 			baseUrl: "https://ai-gateway.vercel.sh",
-			reasoning: false,
+			reasoning: true,
 			input: ["text", "image"],
 			cost: {
 				input: 0.15,
@@ -12906,7 +12906,7 @@ export const MODELS = {
 			api: "anthropic-messages",
 			provider: "vercel-ai-gateway",
 			baseUrl: "https://ai-gateway.vercel.sh",
-			reasoning: false,
+			reasoning: true,
 			input: ["text", "image"],
 			cost: {
 				input: 0.075,
