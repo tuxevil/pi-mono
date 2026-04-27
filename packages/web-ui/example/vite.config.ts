@@ -639,6 +639,12 @@ export default defineConfig({
 								delete requestHeaders.referer;
 							}
 
+							// For all proxied requests, strip Origin/Referer so self-hosted servers
+							// (Ollama, LM Studio, etc.) that have strict CORS allowlists don't reject them.
+							// The proxy itself is the effective client — CORS is irrelevant server-to-server.
+							delete requestHeaders["origin"];
+							delete requestHeaders["referer"];
+							delete requestHeaders["host"];
 							const response = await fetch(targetUrl, {
 								method: req.method,
 								headers: requestHeaders,
