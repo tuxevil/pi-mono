@@ -25,6 +25,7 @@ import {
 	ProviderKeysStore,
 	ProvidersModelsTab,
 	ProxyTab,
+	RemoteStorageBackend,
 	SessionListDialog,
 	SessionsStore,
 	SettingsDialog,
@@ -69,7 +70,10 @@ const backend = new IndexedDBStorageBackend({
 settings.setBackend(backend);
 providerKeys.setBackend(backend);
 customProviders.setBackend(backend);
-sessions.setBackend(backend);
+
+// Use remote backend for sessions
+const remoteBackend = new RemoteStorageBackend();
+sessions.setBackend(remoteBackend);
 
 // Create and set app storage
 const storage = new AppStorage(settings, providerKeys, sessions, customProviders, backend);
