@@ -16,6 +16,44 @@ export default defineConfig({
 		{
 			name: "sessions-api",
 			configureServer(server) {
+				server.middlewares.use(async (req, res, next) => {
+					if (req.url === "/api/settings") {
+						try {
+							const settingsPath = "/root/.pi/agent/settings.json";
+							if (fs.existsSync(settingsPath)) {
+								res.setHeader("Content-Type", "application/json");
+								return res.end(fs.readFileSync(settingsPath, "utf-8"));
+							}
+							res.statusCode = 404;
+							return res.end(JSON.stringify({ error: "Settings not found" }));
+						} catch (err) {
+							res.statusCode = 500;
+							return res.end(JSON.stringify({ error: String(err) }));
+						}
+					}
+
+					if (req.url === "/agentes.json") {
+						const filePath = path.resolve(__dirname, "public/agentes.json");
+						if (fs.existsSync(filePath)) {
+							res.setHeader("Content-Type", "application/json");
+							return res.end(fs.readFileSync(filePath));
+						}
+					}
+
+					if (req.url?.startsWith("/agentes/")) {
+						const filePath = path.join("/root", req.url);
+						if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+							const ext = path.extname(filePath).toLowerCase();
+							const contentType =
+								ext === ".json" ? "application/json" : ext === ".md" ? "text/markdown" : "text/plain";
+							res.setHeader("Content-Type", contentType);
+							return res.end(fs.readFileSync(filePath));
+						}
+					}
+
+					next();
+				});
+
 				const getFilesRecursive = (dir: string): string[] => {
 					if (!fs.existsSync(dir)) return [];
 					let results: string[] = [];
@@ -362,53 +400,6 @@ export default defineConfig({
 							res.end(JSON.stringify({ error: err.message, stack: err.stack }));
 						}
 					});
-				});
-
-				server.middlewares.use(async (req, res, next) => {
-					if (req.url === "/agentes.json") {
-						try {
-							const agentsDir = "/root/agentes";
-							const entries = fs.readdirSync(agentsDir, { withFileTypes: true });
-							const agents = entries
-								.filter((e) => e.isDirectory() && !e.name.startsWith("_") && e.name !== "briefs")
-								.map((e) => e.name);
-							res.setHeader("Content-Type", "application/json");
-							return res.end(JSON.stringify(agents));
-						} catch (err) {
-							res.statusCode = 500;
-							return res.end(String(err));
-						}
-					}
-
-					if (req.url?.startsWith("/agentes/")) {
-						const filePath = path.join("/root", req.url);
-						if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-							const ext = path.extname(filePath).toLowerCase();
-							const contentType =
-								ext === ".json" ? "application/json" : ext === ".md" ? "text/markdown" : "text/plain";
-							res.setHeader("Content-Type", contentType);
-							return res.end(fs.readFileSync(filePath));
-						}
-					}
-					next();
-				});
-
-				server.middlewares.use(async (req, res, next) => {
-					if (req.url !== "/api/settings") {
-						return next();
-					}
-					try {
-						const settingsPath = "/root/.pi/agent/settings.json";
-						if (fs.existsSync(settingsPath)) {
-							res.setHeader("Content-Type", "application/json");
-							return res.end(fs.readFileSync(settingsPath, "utf-8"));
-						}
-						res.statusCode = 404;
-						res.end("Settings not found");
-					} catch (err) {
-						res.statusCode = 500;
-						res.end(String(err));
-					}
 				});
 			},
 		},

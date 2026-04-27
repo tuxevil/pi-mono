@@ -87,3 +87,12 @@ export function modelsAreEqual<TApi extends Api>(
 	if (!a || !b) return false;
 	return a.id === b.id && a.provider === b.provider;
 }
+
+export function registerModel(model: Model<Api>) {
+	let providerModels = modelRegistry.get(model.provider);
+	if (!providerModels) {
+		providerModels = new Map();
+		modelRegistry.set(model.provider, providerModels);
+	}
+	providerModels.set(model.id, model);
+}

@@ -26,6 +26,7 @@ export class StreamingMessageContainer extends LitElement {
 
 	// Public method to update the message with batching for performance
 	public setMessage(message: AgentMessage | null, immediate = false) {
+		console.log("[StreamingMessageContainer] setMessage", message?.role, immediate);
 		// Store the latest message
 		this._pendingMessage = message;
 

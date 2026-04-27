@@ -528,6 +528,8 @@ export class Agent {
 				break;
 
 			case "agent_end":
+				console.log("[Agent] Setting isStreaming to false due to agent_end");
+				this._state.isStreaming = false;
 				this._state.streamingMessage = undefined;
 				break;
 		}

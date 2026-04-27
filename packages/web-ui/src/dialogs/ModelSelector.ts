@@ -59,6 +59,7 @@ export class ModelSelector extends DialogBase {
 
 	private onSelectCallback?: (model: Model<any>) => void;
 	private allowedProviders?: Set<string>;
+	private allowedModels?: Set<string>;
 	private scrollContainerRef = createRef<HTMLDivElement>();
 	private searchInputRef = createRef<HTMLInputElement>();
 	private lastMousePosition = { x: 0, y: 0 };
@@ -69,12 +70,16 @@ export class ModelSelector extends DialogBase {
 		currentModel: Model<any> | null,
 		onSelect: (model: Model<any>) => void,
 		allowedProviders?: string[],
+		allowedModels?: string[],
 	) {
 		const selector = new ModelSelector();
 		selector.currentModel = currentModel;
 		selector.onSelectCallback = onSelect;
 		if (allowedProviders) {
 			selector.allowedProviders = new Set(allowedProviders);
+		}
+		if (allowedModels) {
+			selector.allowedModels = new Set(allowedModels);
 		}
 		selector.open();
 		selector.loadCustomProviders();
@@ -213,6 +218,21 @@ export class ModelSelector extends DialogBase {
 		// Add custom provider models
 		for (const model of this.customProviderModels) {
 			allModels.push({ provider: model.provider, id: model.id, model });
+		}
+
+		// Filter by allowed models if set
+		if (this.allowedModels) {
+			console.log("Filtering by allowed models. Set size:", this.allowedModels.size);
+			console.log("Allowed models list:", Array.from(this.allowedModels));
+			const allowed = this.allowedModels;
+			const filtered = allModels.filter(({ provider, id }) => {
+				const key1 = `${provider}/${id}`;
+				const match = allowed.has(key1) || allowed.has(id);
+				console.log(`Checking model: ${key1} (id: ${id}) -> Match: ${match}`);
+				return match;
+			});
+			allModels.splice(0, allModels.length, ...filtered);
+			console.log("Models after filtering:", allModels.length);
 		}
 
 		// Filter by allowed providers if set
