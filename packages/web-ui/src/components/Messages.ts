@@ -13,9 +13,6 @@ import type { Attachment } from "../utils/attachment-utils.js";
 import { formatUsage } from "../utils/format.js";
 import { i18n } from "../utils/i18n.js";
 import "./ThinkingBlock.js";
-import "./AttachmentTile.js";
-import "@mariozechner/mini-lit/dist/MarkdownBlock.js";
-import "@mariozechner/mini-lit/dist/CodeBlock.js";
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 
 export type UserMessageWithAttachments = {
