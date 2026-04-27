@@ -216,7 +216,7 @@ Feel free to use these tools when needed to provide accurate and helpful respons
 
 			// Auto-save
 			if (currentSessionId) {
-				saveSession();
+				saveSession().then(() => refreshSessions());
 			}
 
 			renderApp();

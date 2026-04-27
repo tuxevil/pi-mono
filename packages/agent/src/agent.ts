@@ -554,10 +554,7 @@ export class Agent {
 				break;
 		}
 
-		const signal = this.activeRun?.abortController.signal;
-		if (!signal) {
-			throw new Error("Agent listener invoked outside active run");
-		}
+		const signal = this.activeRun?.abortController.signal ?? new AbortController().signal;
 		for (const listener of this.listeners) {
 			await listener(event, signal);
 		}
