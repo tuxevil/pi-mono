@@ -1,13 +1,11 @@
-/* Import Claude theme from mini-lit */
+@import "tailwindcss";
 @import "@mariozechner/mini-lit/styles/themes/default.css";
 
 /* Tell Tailwind to scan mini-lit components */
 /* biome-ignore lint/suspicious/noUnknownAtRules: Tailwind 4 source directive */
 @source "../../../node_modules/@mariozechner/mini-lit/dist";
-
-/* Import Tailwind */
-/* biome-ignore lint/correctness/noInvalidPositionAtImportRule: fuck you */
-@import "tailwindcss";
+@source "./**/*.ts";
+@source "../example/src/**/*.ts";
 
 body {
 	font-size: 16px;
@@ -65,4 +63,102 @@ body {
 	border: 1px solid rgba(255, 107, 0, 0.25);
 	backdrop-filter: blur(10px);
 	max-width: 100%;
+}
+
+/* 3-Column Layout */
+html, body, #app {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+}
+
+.app-layout {
+	display: grid;
+	grid-template-columns: 280px 1fr 320px;
+	grid-template-rows: minmax(0, 1fr);
+	height: 100vh;
+	width: 100vw;
+	overflow: hidden;
+}
+
+.left-sidebar {
+	display: flex;
+	flex-direction: column;
+	border-right: 1px solid var(--color-border);
+	background: var(--color-background);
+	z-index: 20;
+	height: 100%;
+	overflow: hidden;
+}
+
+.right-sidebar {
+	display: flex;
+	flex-direction: column;
+	border-left: 1px solid var(--color-border);
+	background: var(--color-background);
+	height: 100%;
+	overflow: hidden;
+}
+
+.main-content {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-width: 0;
+	background: var(--color-background);
+}
+
+.sidebar-section {
+	padding: 1rem;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.sidebar-header {
+	font-size: 0.75rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--color-muted-foreground);
+	margin-bottom: 0.75rem;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.session-list-container {
+	flex: 1;
+	overflow-y: auto;
+	padding: 0.5rem;
+}
+
+.session-item {
+	padding: 0.75rem;
+	border-radius: 0.5rem;
+	cursor: pointer;
+	transition: all 0.2s;
+	margin-bottom: 0.25rem;
+}
+
+.session-item:hover {
+	background: var(--color-accent);
+}
+
+.session-item.active {
+	background: var(--color-secondary);
+	border: 1px solid var(--color-border);
+}
+
+.session-title {
+	font-size: 0.875rem;
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.session-meta {
+	font-size: 0.75rem;
+	color: var(--color-muted-foreground);
+	margin-top: 0.25rem;
 }

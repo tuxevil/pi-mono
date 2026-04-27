@@ -204,6 +204,17 @@ declare module "@mariozechner/mini-lit" {
 		"Anthropic Messages Compatible": string;
 		"Checking...": string;
 		Disconnected: string;
+		"File Explorer": string;
+		"Failed to load files": string;
+		"Enter folder name:": string;
+		"Failed to create folder": string;
+		"Failed to upload file": string;
+		"New Folder": string;
+		Upload: string;
+		Path: string;
+		"Empty directory": string;
+		"Specialized Agents": string;
+		"Recent Sessions": string;
 	}
 }
 
@@ -426,6 +437,17 @@ export const translations = {
 		"Anthropic Messages Compatible": "Anthropic Messages Compatible",
 		"Checking...": "Checking...",
 		Disconnected: "Disconnected",
+		"File Explorer": "File Explorer",
+		"Failed to load files": "Failed to load files",
+		"Enter folder name:": "Enter folder name:",
+		"Failed to create folder": "Failed to create folder",
+		"Failed to upload file": "Failed to upload file",
+		"New Folder": "New Folder",
+		Upload: "Upload",
+		Path: "Path",
+		"Empty directory": "Empty directory",
+		"Specialized Agents": "Specialized Agents",
+		"Recent Sessions": "Recent Sessions",
 	},
 	de: {
 		...defaultGerman,
@@ -645,6 +667,17 @@ export const translations = {
 		"Anthropic Messages Compatible": "Anthropic Messages Kompatibel",
 		"Checking...": "Überprüfe...",
 		Disconnected: "Getrennt",
+		"File Explorer": "Datei-Explorer",
+		"Failed to load files": "Dateien konnten nicht geladen werden",
+		"Enter folder name:": "Ordnername eingeben:",
+		"Failed to create folder": "Ordner konnte nicht erstellt werden",
+		"Failed to upload file": "Datei konnte nicht hochgeladen werden",
+		"New Folder": "Neuer Ordner",
+		Upload: "Hochladen",
+		Path: "Pfad",
+		"Empty directory": "Leeres Verzeichnis",
+		"Specialized Agents": "Spezialisierte Agenten",
+		"Recent Sessions": "Aktuelle Sitzungen",
 	},
 };
 
