@@ -268,6 +268,12 @@ export class ArtifactsPanel extends LitElement {
 		};
 		this._artifacts.set(filename, artifact);
 		this._artifacts = new Map(this._artifacts);
+
+		// Ensure the DOM element is created and updated
+		const element = this.getOrCreateArtifactElement(filename, content);
+		element.content = content;
+
+		this.onArtifactsChange?.();
 		this.openArtifact(filename);
 	}
 
@@ -669,6 +675,29 @@ export class ArtifactsPanel extends LitElement {
 		return element.getLogs();
 	}
 
+	public closeArtifactTab(filename: string) {
+		this._artifacts.delete(filename);
+		this._artifacts = new Map(this._artifacts);
+
+		const element = this.artifactElements.get(filename);
+		if (element) {
+			element.remove();
+			this.artifactElements.delete(filename);
+		}
+
+		if (this._activeFilename === filename) {
+			const remaining = Array.from(this._artifacts.keys());
+			if (remaining.length > 0) {
+				this.showArtifact(remaining[remaining.length - 1]);
+			} else {
+				this._activeFilename = null;
+				this.onClose?.();
+			}
+		}
+		this.onArtifactsChange?.();
+		this.requestUpdate();
+	}
+
 	override render(): TemplateResult {
 		const artifacts = Array.from(this._artifacts.values());
 
@@ -692,13 +721,25 @@ export class ArtifactsPanel extends LitElement {
 								? "border-primary text-primary"
 								: "border-transparent text-muted-foreground hover:text-foreground";
 							return html`
-								<button
-									class="px-3 py-2 whitespace-nowrap border-b-2 ${activeClass}"
-									data-filename="${a.filename}"
-									@click=${() => this.showArtifact(a.filename)}
-								>
-									<span class="font-mono text-xs">${a.filename}</span>
-								</button>
+								<div class="flex items-center border-b-2 ${activeClass} group pr-1">
+									<button
+										class="pl-3 pr-2 py-2 whitespace-nowrap outline-none"
+										data-filename="${a.filename}"
+										@click=${() => this.showArtifact(a.filename)}
+									>
+										<span class="font-mono text-xs">${a.filename}</span>
+									</button>
+									<button
+										class="p-0.5 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-destructive transition-all outline-none"
+										@click=${(e: Event) => {
+											e.stopPropagation();
+											this.closeArtifactTab(a.filename);
+										}}
+										title=${i18n("Close tab")}
+									>
+										${icon(X, "xs")}
+									</button>
+								</div>
 							`;
 						})}
 					</div>
