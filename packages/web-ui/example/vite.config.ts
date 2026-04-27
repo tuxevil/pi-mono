@@ -32,10 +32,19 @@ function safePath(allowedRoot: string, ...segments: string[]): string | null {
 	return full.startsWith(allowedRoot) ? full : null;
 }
 
-/** Returns true if the request appears to come from localhost. */
-function isLocalhost(req: any): boolean {
+/** Returns true if the request appears to come from a private/local network. */
+function isLocalNetwork(req: any): boolean {
 	const addr = req.socket?.remoteAddress ?? "";
-	return addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
+	return (
+		addr === "127.0.0.1" ||
+		addr === "::1" ||
+		addr === "::ffff:127.0.0.1" ||
+		addr.startsWith("10.") ||
+		addr.startsWith("192.168.") ||
+		addr.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) !== null ||
+		addr.startsWith("::ffff:10.") ||
+		addr.startsWith("::ffff:192.168.")
+	);
 }
 
 export default defineConfig({
@@ -71,8 +80,8 @@ export default defineConfig({
 						return;
 					}
 					if (req.url === "/api/agent/auth") {
-						// auth.json contains OAuth tokens — restrict to localhost only
-						if (!isLocalhost(req)) {
+						// auth.json contains OAuth tokens — restrict to local network only
+						if (!isLocalNetwork(req)) {
 							res.statusCode = 403;
 							res.end(JSON.stringify({ error: "Forbidden" }));
 							return;
