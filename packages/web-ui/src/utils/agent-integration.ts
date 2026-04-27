@@ -7,6 +7,12 @@ export interface AgentSettings {
 	[key: string]: any;
 }
 
+export interface CustomAgentConfig {
+	name: string;
+	systemPrompt?: string;
+	files: Record<string, any>;
+}
+
 export interface AgentModels {
 	providers: Record<
 		string,
@@ -176,5 +182,37 @@ export async function syncAgentConfig(storage: AppStorage): Promise<void> {
 		console.log("[agent-integration] Enabling CORS proxy by default");
 		await storage.settings.set("proxy.enabled", true);
 		await storage.settings.set("proxy.url", "/api/proxy/");
+	}
+}
+
+/**
+ * Fetch the list of available specialized agents.
+ */
+export async function fetchAgentsList(): Promise<string[]> {
+	try {
+		const resp = await fetch("/api/agents");
+		if (resp.ok) {
+			return await resp.json();
+		}
+		return [];
+	} catch (err) {
+		console.error("[agent-integration] Error fetching agents list:", err);
+		return [];
+	}
+}
+
+/**
+ * Fetch configuration for a specific specialized agent.
+ */
+export async function fetchAgentConfigByName(name: string): Promise<CustomAgentConfig | null> {
+	try {
+		const resp = await fetch(`/api/agents/${name}`);
+		if (resp.ok) {
+			return await resp.json();
+		}
+		return null;
+	} catch (err) {
+		console.error(`[agent-integration] Error fetching config for agent ${name}:`, err);
+		return null;
 	}
 }
