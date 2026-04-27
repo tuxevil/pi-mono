@@ -99,9 +99,9 @@ export class ArtifactsToolRenderer implements ToolRenderer<ArtifactsParams, unde
 			const command = params?.command;
 			const filename = params?.filename;
 			const labels = command
-				? getCommandLabels(command)
-				: { streaming: i18n("Processing artifact"), complete: i18n("Processed artifact") };
-			const headerText = labels.streaming;
+				? getCommandLabels(command as any)
+				: { streaming: i18n("Processing artifact") as string, complete: i18n("Processed artifact") as string };
+			const headerText = labels.streaming as string;
 
 			// For create/update/rewrite errors, show code block + console/error
 			if (command === "create" || command === "update" || command === "rewrite") {
@@ -147,8 +147,8 @@ export class ArtifactsToolRenderer implements ToolRenderer<ArtifactsParams, unde
 		if (result && params) {
 			const { command, filename, content } = params;
 			const labels = command
-				? getCommandLabels(command)
-				: { streaming: i18n("Processing artifact"), complete: i18n("Processed artifact") };
+				? getCommandLabels(command as any)
+				: { streaming: i18n("Processing artifact") as string, complete: i18n("Processed artifact") as string };
 			const headerText = labels.complete;
 
 			// GET command: show code block with file content
@@ -240,7 +240,7 @@ export class ArtifactsToolRenderer implements ToolRenderer<ArtifactsParams, unde
 				return { content: renderHeader(state, FileCode2, i18n("Preparing artifact...")), isCustom: false };
 			}
 
-			const labels = getCommandLabels(command);
+			const labels = getCommandLabels(command as any) as { streaming: string; complete: string };
 			const headerText = labels.streaming;
 
 			// Render based on command type
