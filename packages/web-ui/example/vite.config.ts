@@ -421,6 +421,90 @@ export default defineConfig({
 						next();
 						return;
 					}
+					if (req.url === "/api/sys/env") {
+						res.setHeader("Content-Type", "application/json");
+						res.end(
+							JSON.stringify({
+								cwd: resolve("/root/pi-mono"),
+								homedir: homedir(),
+								os: process.platform,
+								user: process.env.USER || "root",
+							}),
+						);
+						return;
+					}
+
+					if (req.url?.startsWith("/api/tools/execute")) {
+						// Only allow from local network for safety
+						if (!isLocalNetwork(req)) {
+							res.statusCode = 403;
+							res.end(JSON.stringify({ error: "Forbidden" }));
+							return;
+						}
+
+						if (req.method !== "POST") {
+							res.statusCode = 405;
+							res.end(JSON.stringify({ error: "Method Not Allowed" }));
+							return;
+						}
+
+						try {
+							const bodyStr = await new Promise<string>((resolve) => {
+								let data = "";
+								req.on("data", (chunk) => {
+									data += chunk;
+								});
+								req.on("end", () => resolve(data));
+							});
+							console.log("[agent-proxy] RAW BODY:", bodyStr);
+							const parsed = JSON.parse(bodyStr);
+							const { toolCallId, toolName, params, cwd = "/root/pi-mono" } = parsed;
+
+							console.log(
+								`[agent-proxy] Executing tool ${toolName} with toolCallId=${toolCallId}, params=`,
+								params,
+							);
+
+							// Dynamically import from coding-agent (since it's a devDep)
+							const { createBashTool, createReadTool, createWriteTool, createEditTool } = await import(
+								"@mariozechner/pi-coding-agent"
+							);
+
+							const safeCwd = resolve(cwd);
+							let tool: { execute: (id: string, params: any) => Promise<any> };
+							switch (toolName) {
+								case "bash":
+									tool = createBashTool(safeCwd);
+									break;
+								case "read":
+									tool = createReadTool(safeCwd);
+									break;
+								case "write":
+									tool = createWriteTool(safeCwd);
+									break;
+								case "edit":
+									tool = createEditTool(safeCwd);
+									break;
+								default:
+									res.statusCode = 400;
+									res.end(JSON.stringify({ error: `Unknown tool: ${toolName}` }));
+									return;
+							}
+
+							// Execute tool natively in Node.js
+							const result = await tool.execute(toolCallId, params);
+
+							res.setHeader("Content-Type", "application/json");
+							res.end(JSON.stringify(result));
+						} catch (err: any) {
+							console.error(`[agent-proxy] Tool execution error:`, err);
+							res.statusCode = 500;
+							// Try to preserve output if it's an execution error
+							res.end(JSON.stringify({ error: String(err.message || err) }));
+						}
+						return;
+					}
+
 					if (req.url?.startsWith("/api/files/")) {
 						const url = new URL(req.url, "http://localhost");
 						const pathname = url.pathname;
