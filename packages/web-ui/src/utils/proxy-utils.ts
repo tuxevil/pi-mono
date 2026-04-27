@@ -31,6 +31,11 @@ export function shouldUseProxyForProvider(provider: string, apiKey: string): boo
 			// Codex uses chatgpt.com/backend-api which has no CORS
 			return true;
 
+		case "google-antigravity":
+		case "google-gemini-cli":
+			// Google Gemini CLI/Antigravity often used with local rotator/proxy
+			return true;
+
 		// These providers work without proxy
 		case "openai":
 		case "google":
@@ -75,6 +80,15 @@ export function applyProxyIfNeeded<T extends Api>(model: Model<T>, apiKey: strin
 	}
 
 	// Apply proxy to baseUrl
+	if (proxyUrl.startsWith("/")) {
+		// Path-based proxy (e.g. /api/proxy/URL)
+		const baseUrl = model.baseUrl.endsWith("/") ? model.baseUrl.slice(0, -1) : model.baseUrl;
+		return {
+			...model,
+			baseUrl: `${proxyUrl}${proxyUrl.endsWith("/") ? "" : "/"}${encodeURIComponent(baseUrl)}`,
+		};
+	}
+
 	return {
 		...model,
 		baseUrl: `${proxyUrl}/?url=${encodeURIComponent(model.baseUrl)}`,
@@ -129,11 +143,16 @@ export function createStreamFn(getProxyUrl: () => Promise<string | undefined>) {
 		const apiKey = options?.apiKey;
 		const proxyUrl = await getProxyUrl();
 
+		console.log(
+			`[proxy-utils] Request for ${model.provider}/${model.id}, proxyUrl: ${proxyUrl}, hasApiKey: ${!!apiKey}`,
+		);
+
 		if (!apiKey || !proxyUrl) {
 			return streamSimple(model, context, options);
 		}
 
 		const proxiedModel = applyProxyIfNeeded(model, apiKey, proxyUrl);
+		console.log(`[proxy-utils] Final baseUrl: ${proxiedModel.baseUrl}`);
 		return streamSimple(proxiedModel, context, options);
 	};
 }
