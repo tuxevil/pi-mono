@@ -111,6 +111,7 @@ export { CalculateRenderer } from "./tools/renderers/CalculateRenderer.js";
 export { DefaultRenderer } from "./tools/renderers/DefaultRenderer.js";
 export { GetCurrentTimeRenderer } from "./tools/renderers/GetCurrentTimeRenderer.js";
 export type { ToolRenderer, ToolRenderResult } from "./tools/types.js";
+export { fetchAgentConfig, syncAgentConfig } from "./utils/agent-integration.js";
 export type { Attachment } from "./utils/attachment-utils.js";
 // Utils
 export { loadAttachment } from "./utils/attachment-utils.js";

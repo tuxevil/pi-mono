@@ -18,6 +18,7 @@ import {
 	SettingsDialog,
 	SettingsStore,
 	setAppStorage,
+	syncAgentConfig,
 } from "@mariozechner/pi-web-ui";
 import { html, render } from "lit";
 import { Bell, History, Plus, Settings } from "lucide";
@@ -399,6 +400,13 @@ async function initApp() {
 
 	// Create ChatPanel
 	chatPanel = new ChatPanel();
+
+	// Sync with local agent configuration
+	try {
+		await syncAgentConfig(storage);
+	} catch (err) {
+		console.error("Failed to sync with local agent:", err);
+	}
 
 	// Check for session in URL
 	const urlParams = new URLSearchParams(window.location.search);
