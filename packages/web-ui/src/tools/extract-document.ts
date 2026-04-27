@@ -1,4 +1,4 @@
-import type { AgentTool } from "@mariozechner/pi-agent-core";
+import type { AgentTool, AgentToolUpdateCallback } from "@mariozechner/pi-agent-core";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import { html } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
@@ -33,7 +33,7 @@ export interface ExtractDocumentResult {
 // TOOL
 // ============================================================================
 
-export function createExtractDocumentTool(): AgentTool<typeof extractDocumentSchema, ExtractDocumentResult> & {
+export function createExtractDocumentTool(): AgentTool<any, ExtractDocumentResult> & {
 	corsProxyUrl?: string;
 } {
 	const tool = {
@@ -42,12 +42,18 @@ export function createExtractDocumentTool(): AgentTool<typeof extractDocumentSch
 		corsProxyUrl: undefined as string | undefined, // Can be set by consumer (e.g., from user settings)
 		description: EXTRACT_DOCUMENT_DESCRIPTION,
 		parameters: extractDocumentSchema,
-		execute: async (_toolCallId: string, args: ExtractDocumentParams, signal?: AbortSignal) => {
+		execute: async (
+			_toolCallId: string,
+			args: any,
+			signal?: AbortSignal,
+			_onUpdate?: AgentToolUpdateCallback<ExtractDocumentResult>,
+		) => {
+			const params = args as ExtractDocumentParams;
 			if (signal?.aborted) {
 				throw new Error("Extract document aborted");
 			}
 
-			const url = args.url.trim();
+			const url = params.url.trim();
 			if (!url) {
 				throw new Error("URL is required");
 			}

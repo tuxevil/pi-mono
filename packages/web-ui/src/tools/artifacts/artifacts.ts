@@ -1,7 +1,7 @@
 import { icon } from "@mariozechner/mini-lit";
 import "@mariozechner/mini-lit/dist/MarkdownBlock.js";
 import { Button } from "@mariozechner/mini-lit/dist/Button.js";
-import type { Agent, AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
+import type { Agent, AgentMessage, AgentTool, AgentToolUpdateCallback } from "@mariozechner/pi-agent-core";
 import { StringEnum, type ToolCall } from "@mariozechner/pi-ai";
 import { html, LitElement, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
@@ -269,7 +269,7 @@ export class ArtifactsPanel extends LitElement {
 	}
 
 	// Build the AgentTool (no details payload; return only output strings)
-	public get tool(): AgentTool<typeof artifactsParamsSchema, undefined> {
+	public get tool(): AgentTool<any, undefined> {
 		return {
 			label: "Artifacts",
 			name: "artifacts",
@@ -283,8 +283,14 @@ export class ArtifactsPanel extends LitElement {
 			},
 			parameters: artifactsParamsSchema,
 			// Execute mutates our local store and returns a plain output
-			execute: async (_toolCallId: string, args: Static<typeof artifactsParamsSchema>, _signal?: AbortSignal) => {
-				const output = await this.executeCommand(args);
+			execute: async (
+				_toolCallId: string,
+				args: any,
+				_signal?: AbortSignal,
+				_onUpdate?: AgentToolUpdateCallback<undefined>,
+			) => {
+				const params = args as Static<typeof artifactsParamsSchema>;
+				const output = await this.executeCommand(params);
 				return { content: [{ type: "text", text: output }], details: undefined };
 			},
 		};

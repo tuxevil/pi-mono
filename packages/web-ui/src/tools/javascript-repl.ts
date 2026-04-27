@@ -1,5 +1,5 @@
 import { i18n } from "@mariozechner/mini-lit";
-import type { AgentTool } from "@mariozechner/pi-agent-core";
+import type { AgentTool, AgentToolUpdateCallback } from "@mariozechner/pi-agent-core";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import { html } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
@@ -125,7 +125,7 @@ interface JavaScriptReplResult {
 	}>;
 }
 
-export function createJavaScriptReplTool(): AgentTool<typeof javascriptReplSchema, JavaScriptReplToolResult> & {
+export function createJavaScriptReplTool(): AgentTool<any, JavaScriptReplToolResult> & {
 	runtimeProvidersFactory?: () => SandboxRuntimeProvider[];
 	sandboxUrlProvider?: () => string;
 } {
@@ -142,9 +142,15 @@ export function createJavaScriptReplTool(): AgentTool<typeof javascriptReplSchem
 			return JAVASCRIPT_REPL_TOOL_DESCRIPTION(runtimeProviderDescriptions);
 		},
 		parameters: javascriptReplSchema,
-		execute: async function (_toolCallId: string, args: Static<typeof javascriptReplSchema>, signal?: AbortSignal) {
+		execute: async function (
+			_toolCallId: string,
+			args: any,
+			signal?: AbortSignal,
+			_onUpdate?: AgentToolUpdateCallback<JavaScriptReplToolResult>,
+		) {
+			const params = args as Static<typeof javascriptReplSchema>;
 			const result = await executeJavaScript(
-				args.code,
+				params.code,
 				this.runtimeProvidersFactory?.() ?? [],
 				signal,
 				this.sandboxUrlProvider,
