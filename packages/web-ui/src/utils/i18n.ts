@@ -215,6 +215,7 @@ declare module "@mariozechner/mini-lit" {
 		"Empty directory": string;
 		"Specialized Agents": string;
 		"Recent Sessions": string;
+		"Close tab": string;
 	}
 }
 
@@ -448,6 +449,7 @@ export const translations = {
 		"Empty directory": "Empty directory",
 		"Specialized Agents": "Specialized Agents",
 		"Recent Sessions": "Recent Sessions",
+		"Close tab": "Close tab",
 	},
 	de: {
 		...defaultGerman,
@@ -678,6 +680,7 @@ export const translations = {
 		"Empty directory": "Leeres Verzeichnis",
 		"Specialized Agents": "Spezialisierte Agenten",
 		"Recent Sessions": "Aktuelle Sitzungen",
+		"Close tab": "Tab schließen",
 	},
 };
 
