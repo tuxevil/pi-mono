@@ -119,3 +119,4 @@ export { clearAuthToken, getAuthToken } from "./utils/auth-token.js";
 export { formatCost, formatModelCost, formatTokenCount, formatUsage } from "./utils/format.js";
 export { i18n, setLanguage, translations } from "./utils/i18n.js";
 export { applyProxyIfNeeded, createStreamFn, isCorsError, shouldUseProxyForProvider } from "./utils/proxy-utils.js";
+export { generateUUID } from "./utils/uuid.js";

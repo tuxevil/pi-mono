@@ -184,6 +184,10 @@ export class ModelSelector extends DialogBase {
 		} catch (error) {
 			console.error("Failed to load custom providers:", error);
 		} finally {
+			console.log(
+				"[ModelSelector] Loaded custom provider models:",
+				allCustomModels.map((m) => `${m.provider}/${m.id} (${m.baseUrl})`),
+			);
 			this.customProviderModels = allCustomModels;
 			this.customProvidersLoading = false;
 			this.requestUpdate();
