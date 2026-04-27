@@ -393,6 +393,7 @@ const renderApp = () => {
 										});
 									}
 								}
+								remoteBackend.setAgentName(selectedAgentName);
 								renderApp();
 							}}
 						>

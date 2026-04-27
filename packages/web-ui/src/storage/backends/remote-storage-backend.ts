@@ -6,14 +6,27 @@ import type { StorageBackend, StorageTransaction } from "../types.js";
  */
 export class RemoteStorageBackend implements StorageBackend {
 	private baseUrl: string;
+	private agentName: string | undefined;
 
 	constructor(baseUrl = "/api/storage") {
 		this.baseUrl = baseUrl;
 	}
 
+	setAgentName(name: string | undefined) {
+		this.agentName = name;
+	}
+
+	private getUrl(path: string): string {
+		const url = new URL(`${window.location.origin}${this.baseUrl}${path}`);
+		if (this.agentName) {
+			url.searchParams.set("agent", this.agentName);
+		}
+		return url.toString();
+	}
+
 	async get<T = unknown>(storeName: string, key: string): Promise<T | null> {
 		try {
-			const resp = await fetch(`${this.baseUrl}/${storeName}/${encodeURIComponent(key)}`);
+			const resp = await fetch(this.getUrl(`/${storeName}/${encodeURIComponent(key)}`));
 			if (resp.status === 404) return null;
 			if (!resp.ok) throw new Error(`Failed to get ${storeName}/${key}: ${resp.statusText}`);
 			return await resp.json();
@@ -25,7 +38,7 @@ export class RemoteStorageBackend implements StorageBackend {
 
 	async set<T = unknown>(storeName: string, key: string, value: T): Promise<void> {
 		try {
-			const resp = await fetch(`${this.baseUrl}/${storeName}/${encodeURIComponent(key)}`, {
+			const resp = await fetch(this.getUrl(`/${storeName}/${encodeURIComponent(key)}`), {
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(value),
@@ -39,7 +52,7 @@ export class RemoteStorageBackend implements StorageBackend {
 
 	async delete(storeName: string, key: string): Promise<void> {
 		try {
-			const resp = await fetch(`${this.baseUrl}/${storeName}/${encodeURIComponent(key)}`, {
+			const resp = await fetch(this.getUrl(`/${storeName}/${encodeURIComponent(key)}`), {
 				method: "DELETE",
 			});
 			if (!resp.ok && resp.status !== 404)
@@ -52,7 +65,8 @@ export class RemoteStorageBackend implements StorageBackend {
 
 	async keys(storeName: string, prefix?: string): Promise<string[]> {
 		try {
-			const url = new URL(`${window.location.origin}${this.baseUrl}/${storeName}/keys`);
+			const urlStr = this.getUrl(`/${storeName}/keys`);
+			const url = new URL(urlStr);
 			if (prefix) url.searchParams.set("prefix", prefix);
 			const resp = await fetch(url.toString());
 			if (!resp.ok) throw new Error(`Failed to get keys for ${storeName}: ${resp.statusText}`);
@@ -69,7 +83,8 @@ export class RemoteStorageBackend implements StorageBackend {
 		direction: "asc" | "desc" = "asc",
 	): Promise<T[]> {
 		try {
-			const url = new URL(`${window.location.origin}${this.baseUrl}/${storeName}/index/${indexName}`);
+			const urlStr = this.getUrl(`/${storeName}/index/${indexName}`);
+			const url = new URL(urlStr);
 			url.searchParams.set("direction", direction);
 			const resp = await fetch(url.toString());
 			if (!resp.ok)
@@ -83,7 +98,7 @@ export class RemoteStorageBackend implements StorageBackend {
 
 	async clear(storeName: string): Promise<void> {
 		try {
-			const resp = await fetch(`${this.baseUrl}/${storeName}`, {
+			const resp = await fetch(this.getUrl(`/${storeName}`), {
 				method: "DELETE",
 			});
 			if (!resp.ok) throw new Error(`Failed to clear store ${storeName}: ${resp.statusText}`);
@@ -95,7 +110,7 @@ export class RemoteStorageBackend implements StorageBackend {
 
 	async has(storeName: string, key: string): Promise<boolean> {
 		try {
-			const resp = await fetch(`${this.baseUrl}/${storeName}/${encodeURIComponent(key)}/exists`);
+			const resp = await fetch(this.getUrl(`/${storeName}/${encodeURIComponent(key)}/exists`));
 			if (!resp.ok) throw new Error(`Failed to check existence for ${storeName}/${key}: ${resp.statusText}`);
 			const data = await resp.json();
 			return data.exists;
