@@ -356,9 +356,14 @@ const renderApp = () => {
 	const app = document.getElementById("app");
 	if (!app) return;
 
+	const gridCols = [];
+	if (!leftSidebarCollapsed) gridCols.push(`${leftSidebarWidth}px`, "auto");
+	gridCols.push("1fr");
+	if (!rightSidebarCollapsed) gridCols.push("auto", `${rightSidebarWidth}px`);
+
 	const appHtml = html`
 		<div class="app-layout ${currentTheme === "cyberpunk" ? "theme-cyberpunk" : ""}"
-			style="--left-sidebar-width: ${leftSidebarCollapsed ? "0px" : `${leftSidebarWidth}px`}; --right-sidebar-width: ${rightSidebarCollapsed ? "0px" : `${rightSidebarWidth}px`};"
+			style="grid-template-columns: ${gridCols.join(" ")};"
 		>
 			<!-- Left Sidebar -->
 			${
