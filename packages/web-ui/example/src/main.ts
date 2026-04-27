@@ -13,12 +13,12 @@ import {
 	fetchAgentsList,
 	generateUUID,
 	IndexedDBStorageBackend,
+	i18n,
 	// PersistentStorageDialog, // TODO: Fix - currently broken
 	ProviderKeysStore,
 	ProvidersModelsTab,
 	ProxyTab,
 	RemoteStorageBackend,
-	SessionListDialog,
 	SessionsStore,
 	SettingsDialog,
 	SettingsStore,
@@ -150,7 +150,7 @@ const saveSession = async () => {
 				},
 			},
 			modelId: state.model?.id || null,
-			thinkingLevel: state.thinkingLevel,
+			thinkingLevel: state.thinkingLevel || "off",
 			preview: generateTitle(state.messages),
 		};
 
@@ -251,6 +251,7 @@ const loadSession = async (sessionId: string): Promise<boolean> => {
 
 	updateUrl(sessionId);
 	renderApp();
+	await refreshSessions();
 	return true;
 };
 
@@ -261,6 +262,24 @@ const newSession = () => {
 };
 
 // ============================================================================
+// STATE
+// ============================================================================
+let sessionMetadataList: any[] = [];
+let isFetchingSessions = false;
+
+// Fetch sessions for the sidebar
+const refreshSessions = async () => {
+	if (!storage.sessions || isFetchingSessions) return;
+	isFetchingSessions = true;
+	try {
+		sessionMetadataList = await storage.sessions.getAllMetadata();
+		renderApp();
+	} finally {
+		isFetchingSessions = false;
+	}
+};
+
+// ============================================================================
 // RENDER
 // ============================================================================
 const renderApp = () => {
@@ -268,168 +287,219 @@ const renderApp = () => {
 	if (!app) return;
 
 	const appHtml = html`
-		<div class="w-full h-screen flex flex-col bg-background text-foreground overflow-hidden">
-			<!-- Header -->
-			<div class="flex items-center justify-between border-b border-border shrink-0">
-				<div class="flex items-center gap-2 px-4 py-">
-					${Button({
-						variant: "ghost",
-						size: "sm",
-						children: icon(History, "sm"),
-						onClick: () => {
-							SessionListDialog.open(
-								async (sessionId) => {
-									await loadSession(sessionId);
-								},
-								(deletedSessionId) => {
-									// Only reload if the current session was deleted
-									if (deletedSessionId === currentSessionId) {
-										newSession();
-									}
-								},
-							);
-						},
-						title: "Sessions",
-					})}
-					${Button({
-						variant: "ghost",
-						size: "sm",
-						children: icon(Plus, "sm"),
-						onClick: newSession,
-						title: "New Session",
-					})}
-
-					${
-						currentTitle
-							? isEditingTitle
-								? html`<div class="flex items-center gap-2">
-									${Input({
-										type: "text",
-										value: currentTitle,
-										className: "text-sm w-64",
-										onChange: async (e: Event) => {
-											const newTitle = (e.target as HTMLInputElement).value.trim();
-											if (newTitle && newTitle !== currentTitle && storage.sessions && currentSessionId) {
-												await storage.sessions.updateTitle(currentSessionId, newTitle);
-												currentTitle = newTitle;
+		<div class="app-layout">
+			<!-- Left Sidebar -->
+			<div class="left-sidebar bg-card/30 backdrop-blur-md">
+				<div class="sidebar-section border-b border-border/50">
+					<div class="flex items-center justify-between mb-4">
+						<div class="sidebar-header mb-0">
+							${icon(Plus, "sm")} ${i18n("Specialized Agents")}
+						</div>
+						${Button({
+							variant: "ghost",
+							size: "sm",
+							children: icon(Plus, "sm"),
+							onClick: newSession,
+							title: "New Session",
+						})}
+					</div>
+					<select
+						class="w-full bg-secondary/50 text-foreground text-sm rounded-lg px-3 py-2 outline-none border border-border hover:border-primary/50 transition-colors cursor-pointer"
+						@change=${async (e: Event) => {
+							const name = (e.target as HTMLSelectElement).value;
+							if (name === "default") {
+								selectedAgentName = undefined;
+								await createAgent();
+							} else {
+								selectedAgentName = name;
+								const config = await fetchAgentConfigByName(name);
+								if (config) {
+									const settings = config.files["settings.json"] || {};
+									let model = agent.state.model;
+									if (settings.defaultModel) {
+										const customProviders = await storage.customProviders.getAll();
+										for (const p of customProviders) {
+											const found = p.models?.find((m) => m.id === settings.defaultModel);
+											if (found) {
+												model = found;
+												break;
 											}
-											isEditingTitle = false;
-											renderApp();
-										},
-										onKeyDown: async (e: KeyboardEvent) => {
-											if (e.key === "Enter") {
+										}
+									}
+
+									await createAgent({
+										systemPrompt: config.systemPrompt,
+										model: model,
+										thinkingLevel: settings.defaultThinkingLevel || agent.state.thinkingLevel,
+									});
+								}
+							}
+							remoteBackend.setAgentName(selectedAgentName);
+							await refreshSessions();
+						}}
+					>
+						<option value="default" ?selected=${!selectedAgentName}>Default Agent</option>
+						${availableAgents.map(
+							(name) => html`
+							<option value="${name}" ?selected=${selectedAgentName === name}>
+								${name.charAt(0).toUpperCase() + name.slice(1)}
+							</option>
+						`,
+						)}
+					</select>
+				</div>
+
+				<div class="sidebar-header p-4 pb-2">
+					${icon(History, "sm")} ${i18n("Recent Sessions")}
+				</div>
+				<div class="session-list-container flex-1 overflow-y-auto min-h-0 px-2 pb-4 scrollbar-thin">
+					${
+						sessionMetadataList.length === 0
+							? html`
+						<div class="px-4 py-8 text-center text-sm text-muted-foreground italic">
+							${i18n("No sessions yet")}
+						</div>
+					`
+							: sessionMetadataList.map(
+									(s) => html`
+						<div 
+							class="session-item group relative ${s.id === currentSessionId ? "active bg-primary/10 border-primary/20" : "hover:bg-accent/40"}"
+							@click=${() => loadSession(s.id)}
+						>
+							<div class="session-title pr-6">${s.title || "Untitled Session"}</div>
+							<div class="session-meta">
+								${new Date(s.lastModified).toLocaleDateString()} • ${s.messageCount} ${i18n("messages")}
+							</div>
+							<button 
+								class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+								@click=${async (e: Event) => {
+									e.stopPropagation();
+									if (confirm(i18n("Delete this session?"))) {
+										await storage.sessions?.delete(s.id);
+										if (s.id === currentSessionId) {
+											newSession();
+										} else {
+											await refreshSessions();
+										}
+									}
+								}}
+							>
+								${icon(Plus, "xs", "rotate-45")}
+							</button>
+						</div>
+					`,
+								)
+					}
+				</div>
+
+				<!-- Settings at bottom of left sidebar -->
+				<div class="p-4 border-t border-border/50 flex items-center justify-between">
+					<div class="flex items-center gap-1">
+						<theme-toggle></theme-toggle>
+						${Button({
+							variant: "ghost",
+							size: "sm",
+							children: icon(Settings, "sm"),
+							onClick: () => SettingsDialog.open([new ProvidersModelsTab(), new ProxyTab()]),
+							title: "Settings",
+						})}
+					</div>
+					<div class="text-[10px] text-muted-foreground font-mono">v1.21.9</div>
+				</div>
+			</div>
+
+			<!-- Main Content -->
+			<div class="main-content relative">
+				<!-- Header (Condensed) -->
+				<div class="flex items-center justify-between border-b border-border shrink-0 px-4 py-2 bg-background/80 backdrop-blur-md sticky top-0 z-10">
+					<div class="flex items-center gap-2 overflow-hidden">
+						${
+							currentTitle
+								? isEditingTitle
+									? html`<div class="flex items-center gap-2">
+										${Input({
+											type: "text",
+											value: currentTitle,
+											className: "text-sm w-64",
+											onChange: async (e: Event) => {
 												const newTitle = (e.target as HTMLInputElement).value.trim();
 												if (newTitle && newTitle !== currentTitle && storage.sessions && currentSessionId) {
 													await storage.sessions.updateTitle(currentSessionId, newTitle);
+													// Save state on every update (debounce if needed)
+													if (storage.sessions && currentSessionId) {
+														saveSession();
+													}
 													currentTitle = newTitle;
 												}
 												isEditingTitle = false;
 												renderApp();
-											} else if (e.key === "Escape") {
-												isEditingTitle = false;
-												renderApp();
-											}
-										},
-									})}
-								</div>`
-								: html`<button
-									class="px-2 py-1 text-sm text-foreground hover:bg-secondary rounded transition-colors"
-									@click=${() => {
-										isEditingTitle = true;
-										renderApp();
-										requestAnimationFrame(() => {
-											const input = app?.querySelector('input[type="text"]') as HTMLInputElement;
-											if (input) {
-												input.focus();
-												input.select();
-											}
-										});
-									}}
-									title="Click to edit title"
-								>
-									${currentTitle}
-								</button>`
-							: html`<span class="text-base font-semibold text-foreground">Pi Web UI Example</span>`
-					}
-
-					<div class="flex items-center gap-2 ml-4">
-						<select
-							class="bg-secondary text-foreground text-sm rounded px-2 py-1 outline-none border border-border"
-							@change=${async (e: Event) => {
-								const name = (e.target as HTMLSelectElement).value;
-								if (name === "default") {
-									selectedAgentName = undefined;
-									await createAgent();
-								} else {
-									selectedAgentName = name;
-									const config = await fetchAgentConfigByName(name);
-									if (config) {
-										const settings = config.files["settings.json"] || {};
-										let model = agent.state.model;
-										if (settings.defaultModel) {
-											// Try to find the model in the custom providers first
-											const customProviders = await storage.customProviders.getAll();
-											for (const p of customProviders) {
-												const found = p.models?.find((m) => m.id === settings.defaultModel);
-												if (found) {
-													model = found;
-													break;
+											},
+											onKeyDown: async (e: KeyboardEvent) => {
+												if (e.key === "Enter") {
+													const newTitle = (e.target as HTMLInputElement).value.trim();
+													if (
+														newTitle &&
+														newTitle !== currentTitle &&
+														storage.sessions &&
+														currentSessionId
+													) {
+														await storage.sessions.updateTitle(currentSessionId, newTitle);
+														currentTitle = newTitle;
+													}
+													isEditingTitle = false;
+													renderApp();
+												} else if (e.key === "Escape") {
+													isEditingTitle = false;
+													renderApp();
 												}
-											}
-										}
-
-										await createAgent({
-											systemPrompt: config.systemPrompt,
-											model: model,
-											thinkingLevel: settings.defaultThinkingLevel || agent.state.thinkingLevel,
-										});
-									}
+											},
+										})}
+									</div>`
+									: html`<button
+										class="px-2 py-1 text-base font-semibold text-foreground hover:bg-secondary rounded-lg transition-colors truncate max-w-md"
+										@click=${() => {
+											isEditingTitle = true;
+											renderApp();
+											requestAnimationFrame(() => {
+												const input = app?.querySelector('input[type="text"]') as HTMLInputElement;
+												if (input) {
+													input.focus();
+													input.select();
+												}
+											});
+										}}
+										title="Click to edit title"
+									>
+										${currentTitle}
+									</button>`
+								: html`<span class="text-base font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-orange-400">Pi Web UI</span>`
+						}
+					</div>
+					<div class="flex items-center gap-2">
+						${Button({
+							variant: "ghost",
+							size: "sm",
+							children: icon(Bell, "sm"),
+							onClick: () => {
+								if (agent) {
+									agent.steer(createSystemNotification("Notification system is active."));
 								}
-								remoteBackend.setAgentName(selectedAgentName);
-								renderApp();
-							}}
-						>
-							<option value="default" ?selected=${!selectedAgentName}>Default Agent</option>
-							${availableAgents.map(
-								(name) => html`
-								<option value="${name}" ?selected=${selectedAgentName === name}>
-									${name.charAt(0).toUpperCase() + name.slice(1)}
-								</option>
-							`,
-							)}
-						</select>
+							},
+							title: "Notifications",
+						})}
 					</div>
 				</div>
-				<div class="flex items-center gap-1 px-2">
-					${Button({
-						variant: "ghost",
-						size: "sm",
-						children: icon(Bell, "sm"),
-						onClick: () => {
-							// Demo: Inject custom message (will appear on next agent run)
-							if (agent) {
-								agent.steer(
-									createSystemNotification(
-										"This is a custom message! It appears in the UI but is never sent to the LLM.",
-									),
-								);
-							}
-						},
-						title: "Demo: Add Custom Notification",
-					})}
-					<theme-toggle></theme-toggle>
-					${Button({
-						variant: "ghost",
-						size: "sm",
-						children: icon(Settings, "sm"),
-						onClick: () => SettingsDialog.open([new ProvidersModelsTab(), new ProxyTab()]),
-						title: "Settings",
-					})}
+
+				<!-- Chat Panel Container -->
+				<div class="flex-1 min-h-0 relative">
+					${chatPanel}
 				</div>
 			</div>
 
-			<!-- Chat Panel -->
-			${chatPanel}
+			<!-- Right Sidebar (File Explorer) -->
+			<div class="right-sidebar w-[320px] bg-card/30 backdrop-blur-md">
+				<pi-file-explorer class="flex-1"></pi-file-explorer>
+			</div>
 		</div>
 	`;
 
@@ -491,7 +561,7 @@ async function initApp() {
 		await createAgent();
 	}
 
-	renderApp();
+	await refreshSessions();
 }
 
 initApp();

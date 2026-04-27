@@ -116,15 +116,13 @@ export default defineConfig({
 						}
 
 						const getAllSessionFiles = (dir: string): string[] => {
-							let results: string[] = [];
+							const results: string[] = [];
 							if (!existsSync(dir)) return results;
 							const list = readdirSync(dir);
 							for (const file of list) {
 								const path = join(dir, file);
 								const stat = statSync(path);
-								if (stat?.isDirectory()) {
-									results = results.concat(getAllSessionFiles(path));
-								} else if (file.endsWith(".jsonl")) {
+								if (!stat?.isDirectory() && file.endsWith(".jsonl")) {
 									results.push(path);
 								}
 							}
@@ -290,7 +288,7 @@ export default defineConfig({
 												timestamp: new Date().toISOString(),
 												name: data.title,
 											};
-											appendFileSync(sessionPath, JSON.stringify(infoEntry) + "\n");
+											appendFileSync(sessionPath, `${JSON.stringify(infoEntry)}\n`);
 										}
 									}
 									res.end(JSON.stringify({ success: true }));
@@ -312,46 +310,43 @@ export default defineConfig({
 										timestamp,
 										cwd: "/root/pi-mono",
 									};
-									writeFileSync(targetPath, JSON.stringify(header) + "\n");
+									writeFileSync(targetPath, `${JSON.stringify(header)}\n`);
 								}
 
 								// Full overwrite or intelligent append?
 								// For web-ui compatibility, we'll rewrite the whole file to match the state exactly
 								// but keep it as JSONL.
 								const header = JSON.parse(readFileSync(targetPath, "utf-8").split("\n")[0]);
-								let content = JSON.stringify(header) + "\n";
+								let content = `${JSON.stringify(header)}\n`;
 
 								if (data.title) {
-									content +=
-										JSON.stringify({
-											type: "session_info",
-											id: "title",
-											parentId: null,
-											timestamp: data.createdAt || new Date().toISOString(),
-											name: data.title,
-										}) + "\n";
+									content += `${JSON.stringify({
+										type: "session_info",
+										id: "title",
+										parentId: null,
+										timestamp: data.createdAt || new Date().toISOString(),
+										name: data.title,
+									})}\n`;
 								}
 
 								if (data.thinkingLevel) {
-									content +=
-										JSON.stringify({
-											type: "thinking_level_change",
-											id: "thinking",
-											parentId: null,
-											timestamp: data.createdAt || new Date().toISOString(),
-											thinkingLevel: data.thinkingLevel,
-										}) + "\n";
+									content += `${JSON.stringify({
+										type: "thinking_level_change",
+										id: "thinking",
+										parentId: null,
+										timestamp: data.createdAt || new Date().toISOString(),
+										thinkingLevel: data.thinkingLevel,
+									})}\n`;
 								}
 
 								for (const msg of data.messages) {
-									content +=
-										JSON.stringify({
-											type: "message",
-											id: Math.random().toString(36).substring(2, 10),
-											parentId: null,
-											timestamp: msg.timestamp || new Date().toISOString(),
-											message: msg,
-										}) + "\n";
+									content += `${JSON.stringify({
+										type: "message",
+										id: Math.random().toString(36).substring(2, 10),
+										parentId: null,
+										timestamp: msg.timestamp || new Date().toISOString(),
+										message: msg,
+									})}\n`;
 								}
 
 								writeFileSync(targetPath, content);
@@ -373,6 +368,98 @@ export default defineConfig({
 						next();
 						return;
 					}
+					if (req.url?.startsWith("/api/files/")) {
+						const url = new URL(req.url, "http://localhost");
+						const pathname = url.pathname;
+						const action = pathname.substring("/api/files/".length);
+						const baseDir = "/root/pi-mono"; // Root directory for file explorer
+
+						if (action === "list") {
+							const relPath = url.searchParams.get("path") || ".";
+							const fullPath = join(baseDir, relPath);
+							console.log(`[agent-proxy] Listing files from ${fullPath}`);
+
+							if (existsSync(fullPath)) {
+								const items = readdirSync(fullPath).map((name) => {
+									const itemPath = join(fullPath, name);
+									const stat = statSync(itemPath);
+									return {
+										name,
+										isDirectory: stat.isDirectory(),
+										size: stat.size,
+										mtime: stat.mtime.toISOString(),
+									};
+								});
+								res.setHeader("Content-Type", "application/json");
+								res.end(JSON.stringify(items));
+							} else {
+								res.statusCode = 404;
+								res.end(JSON.stringify({ error: "Directory not found" }));
+							}
+							return;
+						}
+
+						if (action === "download") {
+							const relPath = url.searchParams.get("path") || "";
+							const fullPath = join(baseDir, relPath);
+							console.log(`[agent-proxy] Downloading file: ${fullPath}`);
+
+							if (existsSync(fullPath) && statSync(fullPath).isFile()) {
+								res.setHeader(
+									"Content-Disposition",
+									`attachment; filename="${join(relPath).split("/").pop()}"`,
+								);
+								res.setHeader("Content-Type", "application/octet-stream");
+								res.end(readFileSync(fullPath));
+							} else {
+								res.statusCode = 404;
+								res.end(JSON.stringify({ error: "File not found" }));
+							}
+							return;
+						}
+
+						if (action === "mkdir" && req.method === "POST") {
+							const body = await new Promise<string>((resolve) => {
+								let data = "";
+								req.on("data", (chunk) => {
+									data += chunk;
+								});
+								req.on("end", () => resolve(data));
+							});
+							const { path: relPath } = JSON.parse(body);
+							const fullPath = join(baseDir, relPath);
+							console.log(`[agent-proxy] Creating directory: ${fullPath}`);
+
+							if (!existsSync(fullPath)) {
+								mkdirSync(fullPath, { recursive: true });
+								res.end(JSON.stringify({ success: true }));
+							} else {
+								res.statusCode = 400;
+								res.end(JSON.stringify({ error: "Directory already exists" }));
+							}
+							return;
+						}
+
+						if (action === "upload" && req.method === "POST") {
+							const relPath = url.searchParams.get("path") || "";
+							const fileName = url.searchParams.get("name") || "upload";
+							const fullPath = join(baseDir, relPath, fileName);
+							console.log(`[agent-proxy] Uploading file to: ${fullPath}`);
+
+							const chunks: Buffer[] = [];
+							req.on("data", (chunk) => {
+								chunks.push(chunk);
+							});
+							await new Promise((resolve) => req.on("end", resolve));
+
+							const dir = join(baseDir, relPath);
+							if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+							writeFileSync(fullPath, Buffer.concat(chunks));
+							res.end(JSON.stringify({ success: true }));
+							return;
+						}
+					}
 					if (req.url?.startsWith("/api/proxy/")) {
 						const targetUrl = decodeURIComponent(req.url.substring("/api/proxy/".length));
 						console.log(`[agent-proxy] Proxying request to: ${targetUrl}`);
@@ -381,7 +468,9 @@ export default defineConfig({
 						// Note: This is a dev-only helper
 						const body = await new Promise<Buffer>((resolve) => {
 							const chunks: Buffer[] = [];
-							req.on("data", (chunk) => chunks.push(chunk));
+							req.on("data", (chunk) => {
+								chunks.push(chunk);
+							});
 							req.on("end", () => resolve(Buffer.concat(chunks)));
 						});
 
