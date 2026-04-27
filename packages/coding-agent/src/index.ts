@@ -237,7 +237,6 @@ export {
 	type BashToolDetails,
 	type BashToolInput,
 	type BashToolOptions,
-	createAllTools,
 	createBashToolDefinition,
 	createEditToolDefinition,
 	createFindToolDefinition,
