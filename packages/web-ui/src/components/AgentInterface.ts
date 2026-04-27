@@ -372,13 +372,19 @@ export class AgentInterface extends LitElement {
 								this.sendMessage(input, attachments);
 							}}
 							.onAbort=${() => session.abort()}
-							.onModelSelect=${() => {
+							.onModelSelect=${async () => {
 								if (this.onModelSelect) {
 									this.onModelSelect();
 								} else {
-									ModelSelector.open(state.model, (model) => {
-										session.state.model = model;
-									});
+									const enabledModels = await getAppStorage().settings.get<string[]>("enabledModels");
+									ModelSelector.open(
+										state.model,
+										(model) => {
+											session.state.model = model;
+										},
+										undefined,
+										enabledModels ?? undefined,
+									);
 								}
 							}}
 							.onThinkingChange=${

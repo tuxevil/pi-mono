@@ -59,6 +59,7 @@ export class ModelSelector extends DialogBase {
 
 	private onSelectCallback?: (model: Model<any>) => void;
 	private allowedProviders?: Set<string>;
+	private enabledModels?: Set<string>;
 	private scrollContainerRef = createRef<HTMLDivElement>();
 	private searchInputRef = createRef<HTMLInputElement>();
 	private lastMousePosition = { x: 0, y: 0 };
@@ -69,12 +70,16 @@ export class ModelSelector extends DialogBase {
 		currentModel: Model<any> | null,
 		onSelect: (model: Model<any>) => void,
 		allowedProviders?: string[],
+		enabledModels?: string[],
 	) {
 		const selector = new ModelSelector();
 		selector.currentModel = currentModel;
 		selector.onSelectCallback = onSelect;
 		if (allowedProviders) {
 			selector.allowedProviders = new Set(allowedProviders);
+		}
+		if (enabledModels) {
+			selector.enabledModels = new Set(enabledModels);
 		}
 		selector.open();
 		selector.loadCustomProviders();
@@ -219,6 +224,16 @@ export class ModelSelector extends DialogBase {
 		if (this.allowedProviders) {
 			const allowed = this.allowedProviders;
 			allModels.splice(0, allModels.length, ...allModels.filter(({ provider }) => allowed.has(provider)));
+		}
+
+		// Filter by enabled models if set
+		if (this.enabledModels) {
+			const enabled = this.enabledModels;
+			allModels.splice(
+				0,
+				allModels.length,
+				...allModels.filter(({ provider, id }) => enabled.has(`${provider}/${id}`)),
+			);
 		}
 
 		// Filter models based on search and capability filters
