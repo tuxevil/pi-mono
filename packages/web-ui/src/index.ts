@@ -71,6 +71,7 @@ export {
 // Storage
 export { AppStorage, getAppStorage, setAppStorage } from "./storage/app-storage.js";
 export { IndexedDBStorageBackend } from "./storage/backends/indexeddb-storage-backend.js";
+export { RemoteStorageBackend } from "./storage/backends/remote-storage-backend.js";
 export { Store } from "./storage/store.js";
 export type {
 	AutoDiscoveryProviderType,
