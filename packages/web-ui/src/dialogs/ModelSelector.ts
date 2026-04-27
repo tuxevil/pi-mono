@@ -204,46 +204,41 @@ export class ModelSelector extends DialogBase {
 	}
 
 	private getFilteredModels(): Array<{ provider: string; id: string; model: any }> {
-		// Collect all models from known providers
-		const allModels: Array<{ provider: string; id: string; model: any }> = [];
+		const modelsMap = new Map<string, { provider: string; id: string; model: any }>();
 		const knownProviders = getProviders();
 
+		// Add built-in models
 		for (const provider of knownProviders) {
 			const models = getModels(provider as any);
 			for (const model of models) {
-				allModels.push({ provider, id: model.id, model });
+				modelsMap.set(`${provider}/${model.id}`, { provider, id: model.id, model });
 			}
 		}
 
-		// Add custom provider models
+		// Add custom provider models (overwrites built-ins)
 		for (const model of this.customProviderModels) {
-			allModels.push({ provider: model.provider, id: model.id, model });
+			modelsMap.set(`${model.provider}/${model.id}`, { provider: model.provider, id: model.id, model });
 		}
+
+		let filteredModels = Array.from(modelsMap.values());
 
 		// Filter by allowed providers if set
 		if (this.allowedProviders) {
 			const allowed = this.allowedProviders;
-			allModels.splice(0, allModels.length, ...allModels.filter(({ provider }) => allowed.has(provider)));
+			filteredModels = filteredModels.filter(({ provider }) => allowed.has(provider));
 		}
 
 		// Filter by enabled models if set
 		if (this.enabledModels) {
 			const enabled = this.enabledModels;
-			allModels.splice(
-				0,
-				allModels.length,
-				...allModels.filter(({ provider, id }) => enabled.has(`${provider}/${id}`)),
-			);
+			filteredModels = filteredModels.filter(({ provider, id }) => enabled.has(`${provider}/${id}`));
 		}
-
-		// Filter models based on search and capability filters
-		let filteredModels = allModels;
 
 		// Apply search filter (subsequence match: characters must appear in order)
 		if (this.searchQuery) {
 			const query = this.searchQuery.toLowerCase().replace(/\s+/g, "");
 			if (query) {
-				const scored: Array<{ item: (typeof allModels)[0]; score: number }> = [];
+				const scored: Array<{ item: (typeof filteredModels)[0]; score: number }> = [];
 				for (const entry of filteredModels) {
 					const searchText = `${entry.provider} ${entry.id} ${entry.model.name}`.toLowerCase();
 					const score = subsequenceScore(query, searchText);

@@ -1,4 +1,4 @@
-import type { Model } from "@mariozechner/pi-ai";
+import { getModels, getProviders, type Model } from "@mariozechner/pi-ai";
 import type { AppStorage } from "../storage/app-storage.js";
 
 export interface AgentSettings {
@@ -25,28 +25,17 @@ export interface AgentModels {
  * Fetch agent configuration from the local proxy.
  */
 export async function fetchAgentConfig(): Promise<{ settings: AgentSettings | null; models: AgentModels | null }> {
-	let settings: AgentSettings | null = null;
-	let models: AgentModels | null = null;
-
 	try {
-		const settingsRes = await fetch("/api/agent/settings");
-		if (settingsRes.ok) {
-			settings = await settingsRes.json();
-		}
-	} catch (err) {
-		console.error("Failed to fetch agent settings:", err);
-	}
+		const settingsResp = await fetch("/api/agent/settings");
+		const settings = settingsResp.ok ? await settingsResp.json() : null;
 
-	try {
-		const modelsRes = await fetch("/api/agent/models");
-		if (modelsRes.ok) {
-			models = await modelsRes.json();
-		}
-	} catch (err) {
-		console.error("Failed to fetch agent models:", err);
-	}
+		const modelsResp = await fetch("/api/agent/models");
+		const models = modelsResp.ok ? await modelsResp.json() : { providers: {} };
 
-	return { settings, models };
+		return { settings, models };
+	} catch (_err) {
+		return { settings: null, models: null };
+	}
 }
 
 /**
@@ -59,13 +48,12 @@ export async function syncAgentConfig(storage: AppStorage): Promise<void> {
 		await storage.settings.set("enabledModels", settings.enabledModels);
 	}
 
+	// Sync custom models and provider overrides from models.json
 	if (models?.providers) {
+		const knownProviders = getProviders();
+		const existingProviders = await storage.customProviders.getAll();
 		for (const [providerName, config] of Object.entries(models.providers)) {
-			if (!config.models || config.models.length === 0) continue;
-
-			// Check if we already have this as a custom provider
-			const existing = await storage.customProviders.getAll();
-			let provider = existing.find((p) => p.name === providerName);
+			let provider = existingProviders.find((p) => p.name === providerName);
 
 			if (!provider) {
 				const id =
@@ -79,24 +67,61 @@ export async function syncAgentConfig(storage: AppStorage): Promise<void> {
 					baseUrl: config.baseUrl || "",
 					models: [],
 				};
+			} else {
+				// Update existing provider's base URL
+				provider.baseUrl = config.baseUrl || provider.baseUrl;
 			}
 
-			// Merge models
-			const newModels: Model<any>[] = config.models.map((m) => ({
-				...m,
-				id: m.id,
-				name: m.name || m.id,
-				api: (config.api as any) || "openai-completions",
-				provider: providerName,
-				baseUrl: config.baseUrl || "",
-				reasoning: m.reasoning ?? false,
-				input: m.input ?? ["text"],
-				cost: m.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: m.contextWindow ?? 8192,
-				maxTokens: m.maxTokens ?? 4096,
-			}));
+			if (!provider.models) provider.models = [];
 
-			provider.models = newModels;
+			// If it's a known provider, we might want to override its built-in models
+			if (knownProviders.includes(providerName as any) && config.baseUrl) {
+				const builtInModels = getModels(providerName as any);
+				for (const builtIn of builtInModels) {
+					// Check if already in provider.models
+					const existingModel = provider.models.find((m) => m.id === builtIn.id);
+					if (existingModel) {
+						existingModel.baseUrl = config.baseUrl;
+					} else {
+						provider.models.push({
+							...builtIn,
+							provider: providerName,
+							baseUrl: config.baseUrl,
+						});
+					}
+				}
+			}
+
+			// Handle custom models defined in config.models
+			if (config.models && config.models.length > 0) {
+				const builtInDefaults = knownProviders.includes(providerName as any)
+					? getModels(providerName as any)[0]
+					: undefined;
+
+				for (const m of config.models) {
+					const newModel: Model<any> = {
+						...m,
+						id: m.id,
+						name: m.name || m.id,
+						api: (config.api as any) || (m.api as any) || builtInDefaults?.api || "openai-completions",
+						provider: providerName,
+						baseUrl: config.baseUrl || provider.baseUrl || "",
+						cost: m.cost || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+						contextWindow: m.contextWindow || 128000,
+						maxTokens: m.maxTokens || 16384,
+						reasoning: m.reasoning || false,
+						input: m.input || ["text"],
+					};
+
+					const existingIndex = provider.models.findIndex((mod) => mod.id === m.id);
+					if (existingIndex >= 0) {
+						provider.models[existingIndex] = newModel;
+					} else {
+						provider.models.push(newModel);
+					}
+				}
+			}
+
 			await storage.customProviders.set(provider);
 		}
 	}

@@ -248,16 +248,20 @@ export class AgentInterface extends LitElement {
 		this._autoScroll = true; // Enable auto-scroll when sending a message
 
 		// Compose message with attachments if any
-		if (attachments && attachments.length > 0) {
-			const message: UserMessageWithAttachments = {
-				role: "user-with-attachments",
-				content: input,
-				attachments,
-				timestamp: Date.now(),
-			};
-			await this.session?.prompt(message);
-		} else {
-			await this.session?.prompt(input);
+		try {
+			if (attachments && attachments.length > 0) {
+				const message: UserMessageWithAttachments = {
+					role: "user-with-attachments",
+					content: input,
+					attachments,
+					timestamp: Date.now(),
+				};
+				await session.prompt(message);
+			} else {
+				await session.prompt(input);
+			}
+		} catch (err) {
+			console.error("[AgentInterface] session.prompt failed:", err);
 		}
 	}
 
@@ -276,7 +280,7 @@ export class AgentInterface extends LitElement {
 			<div class="flex flex-col gap-3">
 				<!-- Stable messages list - won't re-render during streaming -->
 				<message-list
-					.messages=${this.session.state.messages}
+					.messages=${[...this.session.state.messages]}
 					.tools=${state.tools}
 					.pendingToolCalls=${this.session ? this.session.state.pendingToolCalls : new Set<string>()}
 					.isStreaming=${state.isStreaming}

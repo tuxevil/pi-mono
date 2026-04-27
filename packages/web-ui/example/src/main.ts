@@ -10,6 +10,7 @@ import {
 	type TextContent,
 } from "@earendil-works/pi-ai";
 import {
+	type AgentEvent,
 	type AgentState,
 	ApiKeyPromptDialog,
 	AppStorage,
@@ -187,9 +188,12 @@ Feel free to use these tools when needed to provide accurate and helpful respons
 		convertToLlm: customConvertToLlm,
 	});
 
-	agentUnsubscribe = agent.subscribe((event: any) => {
-		if (event.type === "state-update") {
-			const messages = event.state.messages;
+	agentUnsubscribe = agent.subscribe((event: AgentEvent) => {
+		// Re-render on any event that might change the state
+		renderApp();
+
+		if (event.type === "message_end") {
+			const messages = agent.state.messages;
 
 			// Generate title after first successful response
 			if (!currentTitle && shouldSaveSession(messages)) {
