@@ -75,7 +75,8 @@ html, body, #app {
 
 .app-layout {
 	display: grid;
-	grid-template-columns: 280px 1fr 320px;
+	/* Overridden dynamically via inline style in main.ts */
+	grid-template-columns: var(--left-sidebar-width, 280px) auto 1fr auto var(--right-sidebar-width, 320px);
 	grid-template-rows: minmax(0, 1fr);
 	height: 100vh;
 	width: 100vw;
@@ -90,6 +91,7 @@ html, body, #app {
 	z-index: 20;
 	height: 100%;
 	overflow: hidden;
+	min-width: 0;
 }
 
 .right-sidebar {
@@ -99,6 +101,34 @@ html, body, #app {
 	background: var(--color-background);
 	height: 100%;
 	overflow: hidden;
+	min-width: 0;
+}
+
+.sidebar-resizer {
+	width: 8px;
+	height: 100%;
+	background: transparent;
+	cursor: col-resize;
+	z-index: 30;
+	position: relative;
+	transition: background-color 0.2s;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer.active {
+	background: var(--color-primary);
+	opacity: 0.5;
+}
+
+/* Adjust borders so they don't double up visually with resizers */
+.sidebar-resizer.left {
+	margin-left: -4px;
+	margin-right: -4px;
+}
+
+.sidebar-resizer.right {
+	margin-left: -4px;
+	margin-right: -4px;
 }
 
 .main-content {
