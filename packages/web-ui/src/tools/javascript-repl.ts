@@ -106,12 +106,10 @@ export type JavaScriptReplToolResult = {
 };
 
 const javascriptReplSchema = Type.Object({
-	title: Type.Optional(
-		Type.String({
-			description:
-				"Brief title describing what the code snippet tries to achieve in active form, e.g. 'Calculating sum'",
-		}),
-	),
+	title: Type.String({
+		description:
+			"Brief title describing what the code snippet tries to achieve in active form, e.g. 'Calculating sum'",
+	}),
 	code: Type.String({ description: "JavaScript code to execute" }),
 });
 
