@@ -26,7 +26,7 @@ import {
 	syncAgentConfig,
 } from "@mariozechner/pi-web-ui";
 import { html, render } from "lit";
-import { Bell, History, Plus, Settings } from "lucide";
+import { Bell, History, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Plus, Settings } from "lucide";
 import "./app.css";
 import { icon } from "@mariozechner/mini-lit";
 import { Button } from "@mariozechner/mini-lit/dist/Button.js";
@@ -274,6 +274,69 @@ const newSession = () => {
 let sessionMetadataList: any[] = [];
 let isFetchingSessions = false;
 
+// Layout State
+let leftSidebarWidth = 280;
+let rightSidebarWidth = 320;
+let leftSidebarCollapsed = false;
+let rightSidebarCollapsed = false;
+let isResizingLeft = false;
+let isResizingRight = false;
+
+const onMouseMove = (e: MouseEvent) => {
+	if (isResizingLeft) {
+		leftSidebarWidth = Math.max(200, Math.min(e.clientX, 600));
+		renderApp();
+	} else if (isResizingRight) {
+		rightSidebarWidth = Math.max(200, Math.min(window.innerWidth - e.clientX, 800));
+		renderApp();
+	}
+};
+
+const onMouseUp = async () => {
+	if (isResizingLeft || isResizingRight) {
+		isResizingLeft = false;
+		isResizingRight = false;
+		document.body.style.cursor = "default";
+		document.removeEventListener("mousemove", onMouseMove);
+		document.removeEventListener("mouseup", onMouseUp);
+		renderApp();
+
+		// Persist
+		await storage.settings.set("layout.leftWidth", leftSidebarWidth);
+		await storage.settings.set("layout.rightWidth", rightSidebarWidth);
+	}
+};
+
+const startLeftResize = (e: MouseEvent) => {
+	e.preventDefault();
+	isResizingLeft = true;
+	document.body.style.cursor = "col-resize";
+	document.addEventListener("mousemove", onMouseMove);
+	document.addEventListener("mouseup", onMouseUp);
+	renderApp();
+};
+
+const startRightResize = (e: MouseEvent) => {
+	e.preventDefault();
+	isResizingRight = true;
+	document.body.style.cursor = "col-resize";
+	document.addEventListener("mousemove", onMouseMove);
+	document.addEventListener("mouseup", onMouseUp);
+	renderApp();
+};
+
+const toggleLeftSidebar = async () => {
+	leftSidebarCollapsed = !leftSidebarCollapsed;
+	renderApp();
+	await storage.settings.set("layout.leftCollapsed", leftSidebarCollapsed);
+};
+
+const toggleRightSidebar = async () => {
+	rightSidebarCollapsed = !rightSidebarCollapsed;
+	renderApp();
+	await storage.settings.set("layout.rightCollapsed", rightSidebarCollapsed);
+};
+
 // Fetch sessions for the sidebar
 const refreshSessions = async () => {
 	if (!storage.sessions || isFetchingSessions) return;
@@ -294,8 +357,13 @@ const renderApp = () => {
 	if (!app) return;
 
 	const appHtml = html`
-		<div class="app-layout ${currentTheme === "cyberpunk" ? "theme-cyberpunk" : ""}">
+		<div class="app-layout ${currentTheme === "cyberpunk" ? "theme-cyberpunk" : ""}"
+			style="--left-sidebar-width: ${leftSidebarCollapsed ? "0px" : `${leftSidebarWidth}px`}; --right-sidebar-width: ${rightSidebarCollapsed ? "0px" : `${rightSidebarWidth}px`};"
+		>
 			<!-- Left Sidebar -->
+			${
+				!leftSidebarCollapsed
+					? html`
 			<div class="left-sidebar bg-card/30 backdrop-blur-md">
 				<div class="sidebar-section border-b border-border/50">
 					<div class="flex items-center justify-between mb-4">
@@ -429,12 +497,25 @@ const renderApp = () => {
 					<div class="text-[10px] text-muted-foreground font-mono">v1.21.9</div>
 				</div>
 			</div>
+			`
+					: ""
+			}
+
+			<!-- Left Resizer -->
+			${!leftSidebarCollapsed ? html`<div class="sidebar-resizer left ${isResizingLeft ? "active" : ""}" @mousedown=${startLeftResize}></div>` : ""}
 
 			<!-- Main Content -->
 			<div class="main-content relative">
 				<!-- Header (Condensed) -->
 				<div class="flex items-center justify-between border-b border-border shrink-0 px-4 py-2 bg-background/80 backdrop-blur-md sticky top-0 z-10 ${currentTheme === "cyberpunk" ? "header-glow" : ""}">
 					<div class="flex items-center gap-2 overflow-hidden">
+						${Button({
+							variant: "ghost",
+							size: "sm",
+							children: icon(leftSidebarCollapsed ? PanelLeft : PanelLeftClose, "sm"),
+							onClick: toggleLeftSidebar,
+							title: leftSidebarCollapsed ? "Expand Left Sidebar" : "Collapse Left Sidebar",
+						})}
 						${
 							currentTitle
 								? isEditingTitle
@@ -501,6 +582,13 @@ const renderApp = () => {
 						${Button({
 							variant: "ghost",
 							size: "sm",
+							children: icon(rightSidebarCollapsed ? PanelRight : PanelRightClose, "sm"),
+							onClick: toggleRightSidebar,
+							title: rightSidebarCollapsed ? "Expand Right Sidebar" : "Collapse Right Sidebar",
+						})}
+						${Button({
+							variant: "ghost",
+							size: "sm",
 							children: icon(Bell, "sm"),
 							onClick: () => {
 								if (agent) {
@@ -518,10 +606,19 @@ const renderApp = () => {
 				</div>
 			</div>
 
+			<!-- Right Resizer -->
+			${!rightSidebarCollapsed ? html`<div class="sidebar-resizer right ${isResizingRight ? "active" : ""}" @mousedown=${startRightResize}></div>` : ""}
+
 			<!-- Right Sidebar (File Explorer) -->
-			<div class="right-sidebar w-[320px] bg-card/30 backdrop-blur-md">
+			${
+				!rightSidebarCollapsed
+					? html`
+			<div class="right-sidebar bg-card/30 backdrop-blur-md">
 				<pi-file-explorer class="flex-1"></pi-file-explorer>
 			</div>
+			`
+					: ""
+			}
 		</div>
 	`;
 
@@ -567,6 +664,17 @@ async function initApp() {
 	} catch (err) {
 		console.error("Failed to fetch specialized agents:", err);
 	}
+
+	// Load layout preferences
+	const savedLeftWidth = await storage.settings.get<number>("layout.leftWidth");
+	if (savedLeftWidth) leftSidebarWidth = savedLeftWidth;
+	const savedRightWidth = await storage.settings.get<number>("layout.rightWidth");
+	if (savedRightWidth) rightSidebarWidth = savedRightWidth;
+
+	const savedLeftCollapsed = await storage.settings.get<boolean>("layout.leftCollapsed");
+	if (savedLeftCollapsed !== undefined && savedLeftCollapsed !== null) leftSidebarCollapsed = savedLeftCollapsed;
+	const savedRightCollapsed = await storage.settings.get<boolean>("layout.rightCollapsed");
+	if (savedRightCollapsed !== undefined && savedRightCollapsed !== null) rightSidebarCollapsed = savedRightCollapsed;
 
 	// Check for session in URL
 	const urlParams = new URLSearchParams(window.location.search);
