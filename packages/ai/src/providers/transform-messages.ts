@@ -193,8 +193,13 @@ export function transformMessages<TApi extends Api>(
 				continue;
 			}
 
+			if (!assistantMsg.content) {
+				console.warn("🚨 WARNING: assistantMsg.content is undefined!", assistantMsg);
+				assistantMsg.content = [];
+			}
+
 			// Track tool calls from this assistant message
-			const toolCalls = assistantMsg.content.filter((b) => b.type === "toolCall") as ToolCall[];
+			const toolCalls = assistantMsg.content?.filter((b) => b.type === "toolCall") as ToolCall[];
 			if (toolCalls.length > 0) {
 				pendingToolCalls = toolCalls;
 				existingToolResultIds = new Set();

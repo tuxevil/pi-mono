@@ -252,7 +252,7 @@ const reloadMcpTools = async (agentName?: string) => {
 					name: toolName,
 					description: `[MCP:${mcpTool.serverName}] ${(mcpTool.description || mcpTool.name).slice(0, 300)}`,
 					parameters,
-					execute: async (toolCallId: string, args: any) => {
+					execute: async (_toolCallId: string, args: any) => {
 						try {
 							const res = await fetch("/api/mcp/execute", {
 								method: "POST",
@@ -269,9 +269,18 @@ const reloadMcpTools = async (agentName?: string) => {
 							} else {
 								contentText = JSON.stringify(result);
 							}
-							return { toolCallId, result: contentText || "(tool returned no output)" };
+							const finalRet = {
+								content: [{ type: "text", text: contentText || "(tool returned no output)" }],
+							};
+							console.log(`[MCP EXECUTE] Returning for ${mcpTool.name}:`, JSON.stringify(finalRet));
+							return finalRet;
 						} catch (e: any) {
-							return { toolCallId, result: `Error executing MCP tool: ${e.message}`, isError: true };
+							const errRet = {
+								content: [{ type: "text", text: `Error: ${e.message}` }],
+								isError: true,
+							};
+							console.error(`[MCP EXECUTE] Returning ERROR for ${mcpTool.name}:`, JSON.stringify(errRet));
+							return errRet;
 						}
 					},
 				} as unknown as import("@mariozechner/pi-agent-core").AgentTool<any, any>);

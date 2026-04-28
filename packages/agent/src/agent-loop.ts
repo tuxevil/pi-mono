@@ -200,7 +200,18 @@ async function runLoop(
 			}
 
 			// Check for tool calls
-			const toolCalls = message.content.filter((c) => c.type === "toolCall");
+			if (!message.content) {
+				console.error(
+					"[agent-loop] message.content is undefined! stopReason:",
+					message.stopReason,
+					"errorMessage:",
+					message.errorMessage,
+				);
+				await emit({ type: "turn_end", message, toolResults: [] });
+				await emit({ type: "agent_end", messages: newMessages });
+				return;
+			}
+			const toolCalls = message.content?.filter((c) => c.type === "toolCall");
 
 			const toolResults: ToolResultMessage[] = [];
 			hasMoreToolCalls = false;
@@ -377,7 +388,11 @@ async function executeToolCalls(
 	signal: AbortSignal | undefined,
 	emit: AgentEventSink,
 ): Promise<ExecutedToolCallBatch> {
-	const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall");
+	if (!assistantMessage.content) {
+		console.error("[agent-loop] executeToolCalls: assistantMessage.content is undefined");
+		return { messages: [], terminate: true };
+	}
+	const toolCalls = assistantMessage.content?.filter((c) => c.type === "toolCall");
 	const hasSequentialToolCall = toolCalls.some(
 		(tc) => currentContext.tools?.find((t) => t.name === tc.name)?.executionMode === "sequential",
 	);

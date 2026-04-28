@@ -175,10 +175,15 @@ export function convertMessages<T extends GoogleApiType>(model: Model<T>, contex
 			});
 		} else if (msg.role === "toolResult") {
 			// Extract text and image content
-			const textContent = msg.content.filter((c): c is TextContent => c.type === "text");
+			if (!msg.content) {
+				console.error("🚨 CRITICAL ERROR: msg.content is undefined in toolResult!", JSON.stringify(msg, null, 2));
+				// Fail gracefully so the crash doesn't happen
+				msg.content = [{ type: "text", text: "(no content)" }];
+			}
+			const textContent = msg.content?.filter((c): c is TextContent => c.type === "text");
 			const textResult = textContent.map((c) => c.text).join("\n");
 			const imageContent = model.input.includes("image")
-				? msg.content.filter((c): c is ImageContent => c.type === "image")
+				? msg.content?.filter((c): c is ImageContent => c.type === "image")
 				: [];
 
 			const hasText = textResult.length > 0;

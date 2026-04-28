@@ -306,7 +306,7 @@ export class AgentInterface extends LitElement {
 				const messages = this.session?.state.messages ?? [];
 				const last = [...messages].reverse().find((m) => m.role === "assistant");
 				const text = last?.content
-					.filter((c): c is { type: "text"; text: string } => c.type === "text")
+					?.filter((c): c is { type: "text"; text: string } => c.type === "text")
 					.map((c) => c.text)
 					.join("");
 				if (text) {
@@ -455,7 +455,7 @@ export class AgentInterface extends LitElement {
 		if (!this.session) return html`<div class="text-xs h-5"></div>`;
 
 		const state = this.session.state;
-		const totals = state.messages
+		const totals = (state.messages || [])
 			.filter((m) => m.role === "assistant")
 			.reduce(
 				(acc, msg: any) => {
