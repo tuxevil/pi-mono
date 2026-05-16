@@ -22,7 +22,7 @@ import {
 	generateUUID,
 	IndexedDBStorageBackend,
 	i18n,
-	// PersistentStorageDialog, // TODO: Fix - currently broken
+	PersistentStorageDialog,
 	ProviderKeysStore,
 	ProvidersModelsTab,
 	ProxyTab,
@@ -936,11 +936,10 @@ async function initApp() {
 		app,
 	);
 
-	// TODO: Fix PersistentStorageDialog - currently broken
 	// Request persistent storage
-	// if (storage.sessions) {
-	// 	await PersistentStorageDialog.request();
-	// }
+	if (storage.sessions) {
+		await PersistentStorageDialog.request();
+	}
 
 	// Create ChatPanel
 	chatPanel = new ChatPanel();

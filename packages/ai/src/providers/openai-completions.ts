@@ -380,6 +380,111 @@ export const streamOpenAICompletions: StreamFunction<"openai-completions", OpenA
 			for (const block of blocks) {
 				finishBlock(block);
 			}
+
+			// Post-process response to detect local/Ollama style JSON tool calls wrapped in markdown fences or plain JSON
+			try {
+				const textBlocks = output.content.filter((block): block is TextContent => block.type === "text");
+				const fullText = textBlocks.map((block) => block.text).join("");
+
+				const jsonRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+				const match = fullText.match(jsonRegex);
+
+				let parsedData: any = null;
+				let matchedStr: string | null = null;
+
+				if (match?.[1]) {
+					try {
+						const candidate = JSON.parse(match[1].trim());
+						if (candidate && typeof candidate === "object" && Array.isArray(candidate.tool_calls)) {
+							parsedData = candidate;
+							matchedStr = match[0];
+						}
+					} catch {
+						// Ignore and fallback to trying fullText
+					}
+				}
+
+				if (!parsedData) {
+					try {
+						const candidate = JSON.parse(fullText.trim());
+						if (candidate && typeof candidate === "object" && Array.isArray(candidate.tool_calls)) {
+							parsedData = candidate;
+							matchedStr = fullText;
+						}
+					} catch {
+						// Ignore
+					}
+				}
+
+				if (parsedData && Array.isArray(parsedData.tool_calls)) {
+					// We successfully found a JSON tool call block!
+					// 1. Clean the text blocks: remove the JSON block from the text content
+					let cleanText = "";
+					if (matchedStr) {
+						const jsonStartIndex = fullText.indexOf(matchedStr);
+						const preText = fullText.substring(0, jsonStartIndex).trim();
+						const postText = fullText.substring(jsonStartIndex + matchedStr.length).trim();
+						cleanText = [preText, postText].filter(Boolean).join("\n\n");
+					}
+
+					// Update the output content by removing all text blocks and optionally adding back the cleaned text
+					output.content = output.content.filter((block) => block.type !== "text");
+					if (cleanText) {
+						output.content.push({ type: "text", text: cleanText });
+					}
+
+					// 2. Add the parsed tool calls as toolCall blocks to the content and stream events
+					for (const tc of parsedData.tool_calls) {
+						if (!tc || typeof tc !== "object") continue;
+
+						const id = tc.id || `call_${Math.random().toString(36).substring(2, 11)}`;
+						const name = tc.name || tc.function?.name;
+						if (!name) continue;
+
+						let args = tc.arguments;
+						if (typeof args === "string") {
+							try {
+								args = JSON.parse(args);
+							} catch {
+								args = {};
+							}
+						} else if (!args && tc.function?.arguments) {
+							args = tc.function.arguments;
+							if (typeof args === "string") {
+								try {
+									args = JSON.parse(args);
+								} catch {
+									args = {};
+								}
+							}
+						}
+
+						const toolCallBlock = {
+							type: "toolCall" as const,
+							id,
+							name,
+							arguments: args || {},
+						};
+						output.content.push(toolCallBlock);
+
+						// Stream start/end events so that the consumer receives the toolcall structured events
+						const contentIndex = output.content.indexOf(toolCallBlock);
+						stream.push({
+							type: "toolcall_start",
+							contentIndex,
+							partial: output,
+						});
+						stream.push({
+							type: "toolcall_end",
+							contentIndex,
+							toolCall: toolCallBlock,
+							partial: output,
+						});
+					}
+				}
+			} catch (postError) {
+				console.error("Error post-processing local model response for tool calls:", postError);
+			}
 			if (options?.signal?.aborted) {
 				throw new Error("Request was aborted");
 			}
