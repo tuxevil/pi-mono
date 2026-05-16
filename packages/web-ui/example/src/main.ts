@@ -1,14 +1,6 @@
 import "@mariozechner/mini-lit/dist/ThemeToggle.js";
 import { Agent, type AgentMessage } from "@earendil-works/pi-agent-core";
-import {
-	createAssistantMessageEventStream,
-	getModel,
-	getModels,
-	getProviders,
-	registerApiProvider,
-	registerModel,
-	type TextContent,
-} from "@earendil-works/pi-ai";
+import { getModel, type TextContent } from "@earendil-works/pi-ai";
 import {
 	type AgentEvent,
 	type AgentState,
@@ -283,7 +275,7 @@ const reloadMcpTools = async (agentName?: string) => {
 							return errRet;
 						}
 					},
-				} as unknown as import("@mariozechner/pi-agent-core").AgentTool<any, any>);
+				} as unknown as import("@earendil-works/pi-agent-core").AgentTool<any, any>);
 			}
 			// Gemini hard limit: 64 tools per request. Core tools ~9 slots → cap MCP at 54.
 			const MAX_MCP_TOOLS = 54;
@@ -1030,7 +1022,7 @@ async function initApp() {
 					role: "assistant",
 					content: [{ type: "text", text: msg }],
 					timestamp: Date.now(),
-				} as unknown as import("@mariozechner/pi-agent-core").AgentMessage;
+				} as unknown as import("@earendil-works/pi-agent-core").AgentMessage;
 				agent.state.messages = [...agent.state.messages, msgObj];
 
 				// Force Lit element to request a re-render
@@ -1121,14 +1113,14 @@ async function initApp() {
 
 			// Use the agent's own streamFn + apiKey resolver — already has proxy/auth configured
 			const apiKey = (await agent.getApiKey?.(model.provider)) ?? "";
-			const summarizationMessages: import("@mariozechner/pi-ai").Message[] = [
+			const summarizationMessages: import("@earendil-works/pi-ai").Message[] = [
 				{
 					role: "user" as const,
 					content: `Please summarize the following chat transcript:\n\n<transcript>\n${transcript}\n</transcript>`,
 					timestamp: Date.now(),
 				},
 			];
-			const context: import("@mariozechner/pi-ai").Context = {
+			const context: import("@earendil-works/pi-ai").Context = {
 				systemPrompt:
 					"You are an expert at summarizing technical and coding AI conversations. Produce a concise, dense summary of all important context, architectural decisions, completed tasks, and current state. Write it explicitly for another AI to read (e.g., 'User requested X. We implemented Y. Current state is Z.'). Do NOT include pleasantries.",
 				messages: summarizationMessages,
@@ -1160,7 +1152,7 @@ async function initApp() {
 				role: "user" as const,
 				content: `[Context compacted. Previous conversation summary:]\n\n<compaction>\n${summaryText}\n</compaction>`,
 				timestamp: Date.now(),
-			} satisfies import("@mariozechner/pi-ai").Message;
+			} satisfies import("@earendil-works/pi-ai").Message;
 
 			// Overwrite the agent's message array
 			const newMessages: AgentMessage[] = [summaryMsg as unknown as AgentMessage, ...recentMsgs];

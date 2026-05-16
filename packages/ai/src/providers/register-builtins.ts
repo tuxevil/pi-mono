@@ -44,8 +44,11 @@ interface AzureOpenAIResponsesProviderModule {
 }
 
 interface GoogleProviderModule {
-	streamGoogle: StreamFunction<"google-generative-ai", GoogleOptions>;
-	streamSimpleGoogle: StreamFunction<"google-generative-ai", SimpleStreamOptions>;
+	streamGoogle: StreamFunction<"google-generative-ai" | "google-gemini-cli" | "google-antigravity", GoogleOptions>;
+	streamSimpleGoogle: StreamFunction<
+		"google-generative-ai" | "google-gemini-cli" | "google-antigravity",
+		SimpleStreamOptions
+	>;
 }
 
 interface GoogleVertexProviderModule {
@@ -95,7 +98,13 @@ let azureOpenAIResponsesProviderModulePromise:
 	| Promise<LazyProviderModule<"azure-openai-responses", AzureOpenAIResponsesOptions, SimpleStreamOptions>>
 	| undefined;
 let googleProviderModulePromise:
-	| Promise<LazyProviderModule<"google-generative-ai", GoogleOptions, SimpleStreamOptions>>
+	| Promise<
+			LazyProviderModule<
+				"google-generative-ai" | "google-gemini-cli" | "google-antigravity",
+				GoogleOptions,
+				SimpleStreamOptions
+			>
+	  >
 	| undefined;
 let googleVertexProviderModulePromise:
 	| Promise<LazyProviderModule<"google-vertex", GoogleVertexOptions, SimpleStreamOptions>>
@@ -227,7 +236,11 @@ function loadAzureOpenAIResponsesProviderModule(): Promise<
 }
 
 function loadGoogleProviderModule(): Promise<
-	LazyProviderModule<"google-generative-ai", GoogleOptions, SimpleStreamOptions>
+	LazyProviderModule<
+		"google-generative-ai" | "google-gemini-cli" | "google-antigravity",
+		GoogleOptions,
+		SimpleStreamOptions
+	>
 > {
 	googleProviderModulePromise ||= import("./google.js").then((module) => {
 		const provider = module as GoogleProviderModule;
@@ -378,8 +391,20 @@ export function registerBuiltInApiProviders(): void {
 
 	registerApiProvider({
 		api: "google-generative-ai",
-		stream: streamGoogle,
-		streamSimple: streamSimpleGoogle,
+		stream: streamGoogle as any,
+		streamSimple: streamSimpleGoogle as any,
+	});
+
+	registerApiProvider({
+		api: "google-gemini-cli",
+		stream: streamGoogle as any,
+		streamSimple: streamSimpleGoogle as any,
+	});
+
+	registerApiProvider({
+		api: "google-antigravity",
+		stream: streamGoogle as any,
+		streamSimple: streamSimpleGoogle as any,
 	});
 
 	registerApiProvider({

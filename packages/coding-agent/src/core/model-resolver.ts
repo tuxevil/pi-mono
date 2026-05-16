@@ -44,6 +44,8 @@ export const defaultModelPerProvider: Record<KnownProvider, string> = {
 	"xiaomi-token-plan-cn": "mimo-v2.5-pro",
 	"xiaomi-token-plan-ams": "mimo-v2.5-pro",
 	"xiaomi-token-plan-sgp": "mimo-v2.5-pro",
+	"google-gemini-cli": "gemini-2.5-flash",
+	"google-antigravity": "gemini-3-flash",
 };
 
 export interface ScopedModel {

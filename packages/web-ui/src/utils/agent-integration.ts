@@ -1,4 +1,4 @@
-import { getModels, getProviders, type Model } from "@mariozechner/pi-ai";
+import { getModels, getProviders, type Model } from "@earendil-works/pi-ai";
 import type { AppStorage } from "../storage/app-storage.js";
 import { generateUUID } from "./uuid.js";
 

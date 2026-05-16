@@ -614,7 +614,7 @@ export default defineConfig({
 
 							// Dynamically import from coding-agent (since it's a devDep)
 							const { createBashTool, createReadTool, createWriteTool, createEditTool } = await import(
-								"@mariozechner/pi-coding-agent"
+								"@earendil-works/pi-coding-agent"
 							);
 
 							const safeCwd = resolve(cwd);
